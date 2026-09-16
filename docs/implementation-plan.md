@@ -10,7 +10,7 @@ The implementation will start from the previous PyMCCE SASA code while correctin
 
 ```bash
 python protrsa.py structure.pdb
-prot-rsa structure.pdb
+prot-rsa structure.cif.gz --mode SIDE --prob-size 1.40 --workers 4
 ```
 
 ```python
@@ -25,6 +25,74 @@ Importing `protrsa` must not parse command-line arguments, create worker process
 if __name__ == "__main__":
     main()
 ```
+
+## Basic program setup: input and output contract
+
+The coding-level contract for this interface is maintained in
+[`specs/command-line-interface.md`](specs/command-line-interface.md).
+
+### Input file
+
+The command accepts exactly one positional argument: the path to a protein
+structure file. The parser infers the input format from the filename
+extension. The first implementation will support:
+
+- PDB files ending in `.pdb`
+- mmCIF files ending in `.cif`
+- gzip-compressed versions ending in `.pdb.gz` or `.cif.gz`
+
+Extension matching should be case-insensitive. A missing file, unsupported
+extension, malformed gzip stream, or invalid structure file must produce a
+clear error on standard error and a nonzero exit status. Input decompression
+must be streamed; the CLI must not create a persistent uncompressed copy.
+
+### Command-line options
+
+```text
+usage: prot-rsa [OPTIONS] INPUT
+
+positional arguments:
+  INPUT                 PDB or mmCIF structure (.pdb, .cif, .pdb.gz, or .cif.gz)
+
+options:
+  --mode {ALL,SIDE,KEY} Atom selection mode (default: ALL)
+  --prob-size FLOAT     Solvent probe radius in angstroms (default: 1.40)
+  --workers INTEGER     Number of worker processes (default: 4)
+  --preserve-het        Preserve loose hetero-atoms (default: false)
+  --use-h               Use hydrogen atoms supplied in the input file (default: false)
+```
+
+`--preserve-het` and `--use-h` are presence flags: omitting either flag keeps
+its value false, while supplying it sets the value to true. `--mode` values
+should be accepted case-insensitively and normalized to uppercase. The CLI
+must reject a nonpositive probe size or worker count with a clear error.
+
+The precise atom-selection rules for `SIDE` and `KEY`, and the definition of a
+"loose hetero atom," remain scientific contract decisions. They must be
+specified and tested before these modes are implemented; the parser must not
+silently invent those rules.
+
+### Output files
+
+Each successful run writes exactly two files alongside the input file:
+
+- `<base>.atom.sas`, containing atom solvent-accessible surface areas
+- `<base>.res.sas`, containing residue solvent-accessible surface areas
+
+`<base>` is the input path with the optional final `.gz` suffix removed,
+followed by the `.pdb` or `.cif` suffix removed. For example:
+
+| Input | Atom output | Residue output |
+| --- | --- | --- |
+| `protein.pdb` | `protein.atom.sas` | `protein.res.sas` |
+| `protein.cif` | `protein.atom.sas` | `protein.res.sas` |
+| `protein.pdb.gz` | `protein.atom.sas` | `protein.res.sas` |
+| `/data/protein.cif.gz` | `/data/protein.atom.sas` | `/data/protein.res.sas` |
+
+The exact columns, units, precision, headers, ordering, and overwrite policy
+for both `.sas` formats must be defined before output serialization is
+implemented. Output files should be written only after parsing and calculation
+succeed so a failed run does not leave a partial result pair.
 
 ## Known issues in the starting code
 
@@ -48,13 +116,19 @@ Before implementing scientific behavior, decide and document:
 3. Whether waters, ions, ligands, and other non-protein atoms occlude protein surfaces.
 4. Whether residue SASA means residue atoms exposed in the context of the complete structure.
 5. Whether to report absolute SASA only or relative SASA as well.
-6. The supported coordinate formats for the first release.
+6. The detailed PDB and mmCIF model, alternate-location, and disorder rules.
 7. The default sphere sampling method and resolution.
 8. The expected units and numerical tolerance used for validation.
 
 These choices are scientifically meaningful. Implementation must stop and request direction rather than silently selecting an ambiguous convention.
 
-The provisional first-release scope is absolute SASA, a 1.4 Å probe, deterministic sphere sampling, per-atom/per-residue/total results, residue values evaluated in whole-structure context, and PDB input. This does not settle the atomic radii set or treatment of hydrogens and non-protein atoms.
+The provisional first-release scope is absolute SASA, a 1.4 Å probe,
+deterministic sphere sampling, per-atom and per-residue output, residue values
+evaluated in whole-structure context, and PDB/mmCIF input with gzip support.
+Hydrogens are excluded unless `--use-h` is supplied. Loose hetero atoms are
+excluded unless `--preserve-het` is supplied. This does not yet settle the
+atomic radii set or the precise selection rules for hetero atoms and each
+calculation mode.
 
 ## Phase 2: Define the public API
 
@@ -185,22 +259,26 @@ GPU work will be coarse-grained, processing batches of atoms and sphere points r
 
 Keep parsing separate from numerical calculation. The parser will produce coordinates, elements, radii, atom identifiers, residue identifiers, chain identifiers, and model/alternate-location information.
 
-Unknown elements and ambiguous records will produce explicit errors or documented warnings rather than silent guesses. PDB is the provisional first format; mmCIF can follow if compatible with the single-script requirement.
+Support PDB and mmCIF input, including gzip-compressed `.pdb.gz` and `.cif.gz`
+files, according to the basic input contract. Apply `--mode`, `--preserve-het`,
+and `--use-h` consistently after parsing and before numerical calculation.
+Unknown elements and ambiguous records will produce explicit errors or
+documented warnings rather than silent guesses.
 
 ## Phase 9: Build the CLI
 
-Proposed commands:
+Required commands:
 
 ```bash
 prot-rsa input.pdb
-prot-rsa input.pdb --output sasa.csv
-prot-rsa input.pdb --probe-radius 1.4 --points 960
-prot-rsa input.pdb --workers 4 --backend auto
-prot-rsa input.pdb --level atom
-prot-rsa input.pdb --level residue
+prot-rsa input.cif.gz --mode SIDE --prob-size 1.40 --workers 4
+prot-rsa input.pdb --preserve-het --use-h
 ```
 
-Output modes will include a human-readable table, CSV atom/residue tables, and JSON results with calculation metadata. Errors go to standard error; invalid input or an unavailable explicitly requested backend returns a nonzero exit status.
+Implement the positional input and five options exactly as defined in the basic
+program setup. A successful run writes the derived `.atom.sas` and `.res.sas`
+files. Errors go to standard error, and invalid input or calculation failure
+returns a nonzero exit status.
 
 ## Phase 10: Test and validate
 
@@ -249,6 +327,11 @@ Every new function will receive focused `pytest` coverage, and tests will run be
 - Importing `protrsa` has no side effects.
 - `python protrsa.py --help` succeeds.
 - Installed `prot-rsa --help` succeeds.
+- PDB and mmCIF inputs produce both expected output files.
+- `.pdb.gz` and `.cif.gz` inputs use the correct output basename.
+- Each CLI default and presence flag behaves according to the input contract.
+- Invalid modes, extensions, probe sizes, and worker counts are rejected.
+- Failed runs do not leave only one output file or partial output files.
 - CLI failures return appropriate exit codes.
 - Source and wheel distributions include `protrsa.py`, `README.md`, and `LICENSE`.
 - Built distributions pass PyPI metadata validation.

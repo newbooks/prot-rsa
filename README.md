@@ -15,8 +15,11 @@ pip install prot-rsa
 Run the installed application with:
 
 ```bash
-prot-rsa
+prot-rsa structure.pdb
 ```
+
+Run `prot-rsa --help` to see the supported PDB/mmCIF input suffixes, calculation
+options, defaults, and derived output filenames.
 
 ## Python use
 
