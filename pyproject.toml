@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prot-rsa"
+version = "1.0.0"
+description = "Fast protein residue surface-area calculation in Python"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Junjun Mao" },
+]
+keywords = [
+    "bioinformatics",
+    "computational biology",
+    "protein",
+    "residue surface area",
+    "structural biology",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "numba",
+]
+
+[project.urls]
+Homepage = "https://github.com/newbooks/prot-rsa"
+Repository = "https://github.com/newbooks/prot-rsa"
+Issues = "https://github.com/newbooks/prot-rsa/issues"
+
+[project.scripts]
+py-rsa = "pyrsa:main"
+
+[tool.setuptools]
+py-modules = ["pyrsa"]
