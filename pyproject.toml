@@ -40,7 +40,7 @@ Repository = "https://github.com/newbooks/prot-rsa"
 Issues = "https://github.com/newbooks/prot-rsa/issues"
 
 [project.scripts]
-py-rsa = "pyrsa:main"
+prot-rsa = "protrsa:main"
 
 [tool.setuptools]
-py-modules = ["pyrsa"]
+py-modules = ["protrsa"]
