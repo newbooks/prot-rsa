@@ -15,18 +15,17 @@ pip install prot-rsa
 Run the installed application with:
 
 ```bash
-py-rsa
+prot-rsa
 ```
 
 ## Python use
 
-The application can also be imported as the `pyrsa` module so its functions
+The application can also be imported as the `protrsa` module so its functions
 and constants can be used directly:
 
 ```python
-import pyrsa
+import protrsa
 ```
 
-The distribution name (`prot-rsa`), command (`py-rsa`), and import name
-(`pyrsa`) intentionally differ to follow the naming conventions of each
-interface.
+The distribution and command are named `prot-rsa`. The import name is
+`protrsa` because Python module names cannot contain hyphens.
