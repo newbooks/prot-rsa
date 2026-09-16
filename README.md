@@ -1,2 +1,2 @@
 # pyrsa
-Python Version of Fast Residue Surface Area Calculation
+Python Version of Fast Protein Residue Surface Area Calculation
