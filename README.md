@@ -21,6 +21,12 @@ prot-rsa structure.pdb
 Run `prot-rsa --help` to see the supported PDB/mmCIF input suffixes, calculation
 options, defaults, and derived output filenames.
 
+The initial atom-only implementation writes `<base>.atom.sas` as TSV and a
+normalized `<base>.pqr` containing the selected radii and placeholder charge
+`0.000`. The current calculation is the deliberately naive serial reference;
+it is intended as a correctness baseline rather than the production-speed
+backend.
+
 ## Python use
 
 The application can also be imported as the `protrsa` module so its functions
@@ -35,15 +41,13 @@ The distribution and command are named `prot-rsa`. The import name is
 
 ## Optimization Comparison
 
-The table below compares protein RSA calculation times for representative
-protein sizes under each supported optimization. Execution times are reported
-in seconds; lower values are better.
+The table below compares protein RSA calculation times under each
+optimization. Execution times are reported in seconds; lower values are
+better.
 
-| Protein size | Reference CPU | Optimized CPU | Multiprocessing (4 workers) | GPU |
-| --- | ---: | ---: | ---: | ---: |
-| Small | — | — | — | — |
-| Medium | — | — | — | — |
-| Large | — | — | — | — |
+| Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE (Å²) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Naive | 1 | 960 | | | | 0 |
 
 Benchmark results should be collected using the same input structures, probe
 radius, sampling resolution, and hardware. Record the protein used for each

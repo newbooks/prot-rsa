@@ -76,8 +76,8 @@ silently invent those rules.
 
 Each successful run writes exactly two files alongside the input file:
 
-- `<base>.atom.sas`, containing atom solvent-accessible surface areas
-- `<base>.res.sas`, containing residue solvent-accessible surface areas
+- `<base>.atom.sas`, a TSV file containing atom solvent-accessible surface areas
+- `<base>.res.sas`, a TSV file containing residue solvent-accessible surface areas
 
 `<base>` is the input path with the optional final `.gz` suffix removed,
 followed by the `.pdb` or `.cif` suffix removed. For example:
@@ -89,10 +89,11 @@ followed by the `.pdb` or `.cif` suffix removed. For example:
 | `protein.pdb.gz` | `protein.atom.sas` | `protein.res.sas` |
 | `/data/protein.cif.gz` | `/data/protein.atom.sas` | `/data/protein.res.sas` |
 
-The exact columns, units, precision, headers, ordering, and overwrite policy
-for both `.sas` formats must be defined before output serialization is
-implemented. Output files should be written only after parsing and calculation
-succeed so a failed run does not leave a partial result pair.
+Both `.sas` files use tab-separated values. Their exact columns, units,
+precision, headers, ordering, and overwrite policy must be defined before
+output serialization is implemented. Output files should be written only
+after parsing and calculation succeed so a failed run does not leave a partial
+result pair.
 
 ## Known issues in the starting code
 

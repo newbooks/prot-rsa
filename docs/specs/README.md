@@ -9,3 +9,7 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
 
 - [`command-line-interface.md`](command-line-interface.md): command options,
   supported input filenames, output-name derivation, help text, and CLI tests.
+- [`constants_decision.md`](constants_decision.md): solvent probe, atomic-radius
+  modes, Fe/unknown fallbacks, and loose hetero-component classifications.
+- [`atom-sasa-naive.md`](atom-sasa-naive.md): deterministic 960-point
+  Shrake–Rupley reference calculation of absolute per-atom SASA.
