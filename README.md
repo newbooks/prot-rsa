@@ -47,7 +47,12 @@ better.
 
 | Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE (Å²) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Naive | 1 | 960 | | | | 0 |
+| Naive | 1 | 960 | 551 | 2185 | 11634 | 0 |
+
+Benchmark structures: **small** — 1LYZ (129 residues); **medium** — 1CA2
+(256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
+of unique residues represented by `ATOM` records; waters, ions, and other
+`HETATM` records are excluded.
 
 Benchmark results should be collected using the same input structures, probe
 radius, sampling resolution, and hardware. Record the protein used for each

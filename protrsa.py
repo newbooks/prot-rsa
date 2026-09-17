@@ -7,7 +7,11 @@ from dataclasses import dataclass
 import gzip
 import math
 import numbers
+import os
 from pathlib import Path
+import sys
+import tempfile
+import time
 from types import MappingProxyType
 from typing import Iterable, Sequence
 
@@ -613,17 +617,25 @@ def calculate_atom_sasa(
 
 
 def _write_new_text(output_path: str | Path, text: str) -> None:
-    """Create one text file and remove it if writing or closing fails."""
+    """Atomically create or replace one text file."""
 
     path = Path(output_path)
-    created = False
+    temporary_path: Path | None = None
     try:
-        with path.open("x", encoding="utf-8") as output_file:
-            created = True
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as output_file:
+            temporary_path = Path(output_file.name)
             output_file.write(text)
+        os.replace(temporary_path, path)
     except BaseException:
-        if created:
-            path.unlink(missing_ok=True)
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
         raise
 
 
@@ -943,18 +955,13 @@ def derive_pqr_path(input_path: str | Path) -> Path:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the command-line entry point."""
 
+    start_time = time.perf_counter()
     parser = build_parser()
     arguments = parser.parse_args(argv)
     if arguments.mode != "ALL":
         parser.error("SIDE and KEY atom-selection modes are not implemented yet")
     atom_output, _ = derive_output_paths(arguments.input)
     pqr_output = derive_pqr_path(arguments.input)
-    existing_outputs = [path for path in (atom_output, pqr_output) if path.exists()]
-    if existing_outputs:
-        parser.error(
-            "refusing to overwrite existing output: "
-            + ", ".join(str(path) for path in existing_outputs)
-        )
     try:
         source_atoms = read_structure(arguments.input)
         atoms = normalize_atoms(
@@ -965,16 +972,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         atom_sasa = calculate_atom_sasa(atoms, probe_size=arguments.prob_size)
     except (StructureReadError, ValueError) as error:
         parser.error(str(error))
-    created_outputs: list[Path] = []
     try:
         write_atom_sasa_tsv(atom_output, atoms, atom_sasa)
-        created_outputs.append(atom_output)
         write_pqr(pqr_output, atoms)
-        created_outputs.append(pqr_output)
     except OSError as error:
-        for created_output in created_outputs:
-            created_output.unlink(missing_ok=True)
         parser.error(f"could not write output files: {error}")
+    elapsed_time = time.perf_counter() - start_time
+    print(f"Total elapsed time: {elapsed_time:.3f} seconds", file=sys.stderr)
     return 0
 
 

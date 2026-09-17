@@ -128,48 +128,41 @@ def test_writers_emit_zero_charge_radius_and_sasa(tmp_path: Path) -> None:
     assert "12.345679" in sasa_text
 
 
-def test_writer_removes_file_when_write_fails(
+def test_writer_preserves_existing_file_when_atomic_replace_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    output_path = tmp_path / "partial.pqr"
-    original_open = Path.open
+    output_path = tmp_path / "existing.pqr"
+    output_path.write_text("old content\n", encoding="utf-8")
 
-    class FailingFile:
-        def __init__(self, path: Path, *args: object, **kwargs: object) -> None:
-            self.file = original_open(path, *args, **kwargs)  # type: ignore[arg-type]
+    def failing_replace(source: object, destination: object) -> None:
+        raise OSError("simulated replace failure")
 
-        def __enter__(self) -> "FailingFile":
-            return self
+    monkeypatch.setattr(protrsa.os, "replace", failing_replace)
 
-        def write(self, text: str) -> None:
-            self.file.write(text[:5])
-            raise OSError("simulated disk full")
-
-        def __exit__(self, *args: object) -> None:
-            self.file.close()
-
-    def failing_open(path: Path, *args: object, **kwargs: object) -> FailingFile:
-        return FailingFile(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", failing_open)
-
-    with pytest.raises(OSError, match="disk full"):
+    with pytest.raises(OSError, match="replace failure"):
         protrsa.write_pqr(output_path, protrsa.normalize_atoms([atom("CA", "C")]))
 
-    assert not output_path.exists()
+    assert output_path.read_text(encoding="utf-8") == "old content\n"
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def test_pqr_path_derivation() -> None:
     assert protrsa.derive_pqr_path("inputs/model.cif.gz") == Path("inputs/model.pqr")
 
 
-def test_cli_writes_atom_sasa_and_pqr_for_single_atom(tmp_path: Path) -> None:
+def test_cli_writes_atom_sasa_and_pqr_for_single_atom(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     input_path = tmp_path / "one.pdb"
     input_path.write_text(
         "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00 20.00"
         "           C  \n",
         encoding="utf-8",
     )
+    times = iter([100.0, 101.23456])
+    monkeypatch.setattr(protrsa.time, "perf_counter", lambda: next(times))
 
     exit_status = protrsa.main([str(input_path)])
 
@@ -181,9 +174,12 @@ def test_cli_writes_atom_sasa_and_pqr_for_single_atom(tmp_path: Path) -> None:
     assert not (tmp_path / "one.res.sas").exists()
     assert "sasa_A2" in atom_output.read_text(encoding="utf-8")
     assert "0.000" in pqr_output.read_text(encoding="utf-8")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "Total elapsed time: 1.235 seconds\n"
 
 
-def test_cli_refuses_to_overwrite_output(tmp_path: Path) -> None:
+def test_cli_overwrites_existing_outputs(tmp_path: Path) -> None:
     input_path = tmp_path / "one.pdb"
     input_path.write_text(
         "ATOM      1  CA  ALA A   1       0.000   0.000   0.000  1.00 20.00"
@@ -192,9 +188,12 @@ def test_cli_refuses_to_overwrite_output(tmp_path: Path) -> None:
     )
     output_path = tmp_path / "one.atom.sas"
     output_path.write_text("keep me\n", encoding="utf-8")
+    pqr_path = tmp_path / "one.pqr"
+    pqr_path.write_text("old pqr\n", encoding="utf-8")
 
-    with pytest.raises(SystemExit):
-        protrsa.main([str(input_path)])
+    assert protrsa.main([str(input_path)]) == 0
 
-    assert output_path.read_text(encoding="utf-8") == "keep me\n"
-    assert not (tmp_path / "one.pqr").exists()
+    assert "sasa_A2" in output_path.read_text(encoding="utf-8")
+    assert output_path.read_text(encoding="utf-8") != "keep me\n"
+    assert "0.000" in pqr_path.read_text(encoding="utf-8")
+    assert pqr_path.read_text(encoding="utf-8") != "old pqr\n"

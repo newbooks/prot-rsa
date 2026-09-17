@@ -14,10 +14,9 @@ SASA, relative accessibility, exposed fractions, percentages, or normalized
 values. Residue SASA will be specified only after optimized atom SASA has been
 validated against this reference.
 
-The eventual `.atom.sas` output is a tab-separated-values (TSV) file. Its
-columns, headers, precision, ordering metadata, and overwrite behavior belong
-in a separate atom-output specification. This numerical reference function
-does not perform serialization.
+The `.atom.sas` output is a tab-separated-values (TSV) file. Its initial
+columns, precision, ordering, and overwrite behavior are defined below. The
+numerical reference function itself does not perform serialization.
 
 The algorithm is the Shrake–Rupley dot-surface method described by Shrake and
 Rupley (1973). The implementation must remain in the single import-safe
@@ -119,8 +118,16 @@ No `.res.sas` file is written during this atom-only stage. Output order is the
 normalized atom order. SASA is written to six decimal places and radii to three
 decimal places. PQR output is a radius-bearing interchange file only; its zero
 charges must not be interpreted as an electrostatic charge model. The CLI must
-refuse to overwrite either output. If writing the pair fails, it must remove
-any newly created partial output from that invocation.
+always replace existing atom-SASA and PQR outputs. Each file must be written to
+a temporary file in the destination directory and atomically replace its final
+path only after the complete write succeeds. A failed write must not truncate
+an existing output or leave its temporary file behind.
+
+After a successful calculation and both output writes, report
+`Total elapsed time: <seconds> seconds` to standard error with three digits
+after the decimal point. Measure wall-clock time with `time.perf_counter()`
+from entry into `main()` through completed output writing. Help and failed runs
+do not require an elapsed-time report.
 
 References:
 
