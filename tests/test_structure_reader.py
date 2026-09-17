@@ -85,10 +85,12 @@ def test_read_pdb_and_gzip(name: str, tmp_path: Path) -> None:
 
     assert atoms == [
         protrsa.AtomRecord(
-            "ATOM", "1", "N", "N", "", "ALA", "A", "1", "", 1.0, 2.0, 3.0, 1.0, 1
+            "ATOM", "1", "N", "N", "", "ALA", "A", "1", "", 1.0, 2.0, 3.0,
+            1.0, 1, "   N"
         ),
         protrsa.AtomRecord(
-            "HETATM", "2", "O", "O", "", "HOH", "A", "2", "", 1.0, 2.0, 3.0, None, 1
+            "HETATM", "2", "O", "O", "", "HOH", "A", "2", "", 1.0, 2.0,
+            3.0, None, 1, "   O"
         ),
     ]
 
@@ -105,9 +107,23 @@ def test_read_mmcif_and_gzip_with_author_identifiers(name: str, tmp_path: Path) 
 
     assert atoms == [
         protrsa.AtomRecord(
-            "ATOM", "1", "N", "N", "", "GLY", "A", "42", "", 1.0, 2.0, 3.0, 0.75, 1
+            "ATOM", "1", "N", "N", "", "GLY", "A", "42", "", 1.0, 2.0, 3.0,
+            0.75, 1, " N  "
         )
     ]
+
+
+def test_pdb_atom_name_field_is_retained_exactly(tmp_path: Path) -> None:
+    path = tmp_path / "names.pdb"
+    alpha_carbon = pdb_atom(1, "CA", element="C")
+    calcium = pdb_atom(2, "CA", element="CA", record_type="HETATM")
+    path.write_text(alpha_carbon + calcium, encoding="utf-8")
+
+    atoms = protrsa.read_structure(path)
+
+    assert atoms[0].atom_name == atoms[1].atom_name == "CA"
+    assert atoms[0].atom_name_raw == alpha_carbon[12:16]
+    assert atoms[1].atom_name_raw == calcium[12:16]
 
 
 @pytest.mark.parametrize("suffix", ["pdb", "cif"])

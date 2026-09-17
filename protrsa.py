@@ -137,6 +137,7 @@ class AtomRecord:
     z: float
     occupancy: float | None
     model: int
+    atom_name_raw: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +177,17 @@ def _missing_cif_value(value: str) -> str:
     """Normalize an mmCIF missing-value marker to an empty string."""
 
     return "" if value in {".", "?"} else value
+
+
+def _four_character_atom_name(atom_name: str, element: str) -> str:
+    """Construct the PDB-style four-character representation of an atom name."""
+
+    name = atom_name[:4]
+    if len(name) >= 4:
+        return name
+    if len(element) == 1:
+        return f" {name:<3}"
+    return f"{name:<4}"
 
 
 def _tokenize_mmcif(text: str) -> list[str]:
@@ -355,6 +367,7 @@ def _parse_pdb(lines: Iterable[str]) -> list[AtomRecord]:
                 z=z,
                 occupancy=occupancy,
                 model=current_model,
+                atom_name_raw=line[12:16],
             )
         )
     return atoms
@@ -450,11 +463,12 @@ def _parse_mmcif(text: str) -> list[AtomRecord]:
         )
         if not atom_name or not residue_name:
             raise StructureReadError("mmCIF atom-site row lacks an atom or residue name")
+        element = _missing_cif_value(row.get("_atom_site.type_symbol", "")).upper()
         atoms.append(
             AtomRecord(
                 record_type=record,
                 serial=_missing_cif_value(row.get("_atom_site.id", "")),
-                element=_missing_cif_value(row.get("_atom_site.type_symbol", "")).upper(),
+                element=element,
                 atom_name=atom_name,
                 altloc=_missing_cif_value(row.get("_atom_site.label_alt_id", "")),
                 residue_name=residue_name,
@@ -470,6 +484,7 @@ def _parse_mmcif(text: str) -> list[AtomRecord]:
                     row.get("_atom_site.occupancy", ""), field="mmCIF occupancy"
                 ),
                 model=model,
+                atom_name_raw=_four_character_atom_name(atom_name, element),
             )
         )
     return atoms
@@ -500,21 +515,13 @@ def read_structure(input_path: str | Path) -> list[AtomRecord]:
 
 
 def _normalized_element(atom: AtomRecord) -> str:
-    """Return an uppercase element, using conservative atom-name inference."""
+    """Return the element, falling back to PDB atom-name alignment."""
 
     if atom.element:
         return atom.element.upper()
-    name = atom.atom_name.upper().lstrip("0123456789")
-    if not name:
-        return "X"
-    if name[0] in {"H", "D"}:
-        return name[0]
-    if atom.record_type == "ATOM":
-        return name[0]
-    for symbol in ("CL", "SE", "BR", "LI", "NA", "RB", "CS", "FE"):
-        if name.startswith(symbol):
-            return symbol
-    return name[0]
+    atom_name_field = atom.atom_name_raw or atom.atom_name
+    inferred = atom_name_field[:2].strip().upper().lstrip("0123456789")
+    return inferred or "X"
 
 
 def _protor_radius(atom: AtomRecord, element: str) -> float:
@@ -607,6 +614,21 @@ def calculate_atom_sasa(
     )
 
 
+def _write_new_text(output_path: str | Path, text: str) -> None:
+    """Create one text file and remove it if writing or closing fails."""
+
+    path = Path(output_path)
+    created = False
+    try:
+        with path.open("x", encoding="utf-8") as output_file:
+            created = True
+            output_file.write(text)
+    except BaseException:
+        if created:
+            path.unlink(missing_ok=True)
+        raise
+
+
 def write_pqr(output_path: str | Path, atoms: Sequence[NormalizedAtom]) -> None:
     """Write normalized atoms as PQR with the approved zero placeholder charge."""
 
@@ -620,8 +642,7 @@ def write_pqr(output_path: str | Path, atoms: Sequence[NormalizedAtom]) -> None:
             f"{source.x:8.3f}{source.y:8.3f}{source.z:8.3f}"
             f" {0.0:7.3f} {atom.radius:6.3f}\n"
         )
-    with Path(output_path).open("x", encoding="utf-8") as output_file:
-        output_file.write("".join(lines))
+    _write_new_text(output_path, "".join(lines))
 
 
 def write_atom_sasa_tsv(
@@ -645,8 +666,7 @@ def write_atom_sasa_tsv(
             f"{source.insertion_code}\t{atom.element}\t{atom.radius:.3f}\t"
             f"{float(sasa):.6f}\n"
         )
-    with Path(output_path).open("x", encoding="utf-8") as output_file:
-        output_file.write("".join(lines))
+    _write_new_text(output_path, "".join(lines))
 
 
 def generate_sphere_points(

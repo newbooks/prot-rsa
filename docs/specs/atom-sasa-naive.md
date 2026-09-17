@@ -35,7 +35,11 @@ The reader must retain `ATOM` and `HETATM` records in input order and expose,
 for each retained atom, its record type, source atom identifier, element, atom
 name, alternate-location identifier, residue name, chain identifier, residue
 sequence identifier, insertion code, Cartesian coordinates, occupancy, and
-model number. Missing optional text values are normalized to the empty string;
+model number. The normalized record must retain both the stripped atom name
+and its four-character PDB representation. For PDB, the latter is the exact
+columns 13–16 field so its alignment is not lost. For mmCIF, construct the
+equivalent four-character representation from the atom name and element.
+Missing optional text values are normalized to the empty string;
 missing occupancy is represented by `None`. For mmCIF identifiers, prefer the
 `auth_*` value when it is present and otherwise use its corresponding
 `label_*` value. A mmCIF `.` or `?` value is missing.
@@ -74,6 +78,13 @@ present, retain supplied `H` and `D` atoms and assign every atom from
 `EXPLICIT_ATOM_RADII`; never mix the two radius sets. Elements absent from the
 selected table use `X` and `UNKNOWN_RADIUS = 2.00` Å. The program does not add
 hydrogens.
+
+Element-based radius lookup uses the explicit element field first. If it is
+missing, infer the element from the first two characters of the retained
+four-character atom-name field after stripping spaces (and an optional leading
+digit used by hydrogen names). Thus PDB `" CA "` falls back to carbon `C`,
+whereas `"CA  "` falls back to calcium `CA`; stripping the display atom name
+must not erase this distinction.
 
 For the initial ProtOr mapping, standard amino-acid nitrogen uses `N`; sulfur,
 phosphorus, and selenium use their corresponding ProtOr entries; backbone and

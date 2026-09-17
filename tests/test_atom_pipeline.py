@@ -16,10 +16,11 @@ def atom(
     residue_name: str = "ALA",
     record_type: str = "ATOM",
     serial: str = "1",
+    atom_name_raw: str = "",
 ) -> protrsa.AtomRecord:
     return protrsa.AtomRecord(
         record_type, serial, element, atom_name, "", residue_name, "A", "1", "",
-        0.0, 0.0, 0.0, 1.0, 1,
+        0.0, 0.0, 0.0, 1.0, 1, atom_name_raw,
     )
 
 
@@ -38,6 +39,19 @@ def test_default_normalization_filters_hydrogen_and_loose_hetatm() -> None:
     assert normalized[0].radius == protrsa.PROTOR_RADII["TETRAHEDRAL_C"]
     assert normalized[1].radius == protrsa.UNKNOWN_RADIUS
     assert normalized[1].element == "X"
+
+
+def test_blank_element_fallback_distinguishes_alpha_carbon_and_calcium() -> None:
+    alpha_carbon = atom("CA", "", atom_name_raw=" CA ")
+    calcium = atom(
+        "CA", "", residue_name="CA", record_type="HETATM", serial="2",
+        atom_name_raw="CA  "
+    )
+
+    normalized = protrsa.normalize_atoms([alpha_carbon, calcium])
+
+    assert [item.source.atom_name for item in normalized] == ["CA", "CA"]
+    assert [item.element for item in normalized] == ["C", "X"]
 
 
 def test_use_h_retains_hydrogen_and_uses_only_explicit_radii() -> None:
@@ -103,6 +117,37 @@ def test_writers_emit_zero_charge_radius_and_sasa(tmp_path: Path) -> None:
     sasa_text = sasa_path.read_text(encoding="utf-8")
     assert "sasa_A2" in sasa_text
     assert "12.345679" in sasa_text
+
+
+def test_writer_removes_file_when_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_path = tmp_path / "partial.pqr"
+    original_open = Path.open
+
+    class FailingFile:
+        def __init__(self, path: Path, *args: object, **kwargs: object) -> None:
+            self.file = original_open(path, *args, **kwargs)  # type: ignore[arg-type]
+
+        def __enter__(self) -> "FailingFile":
+            return self
+
+        def write(self, text: str) -> None:
+            self.file.write(text[:5])
+            raise OSError("simulated disk full")
+
+        def __exit__(self, *args: object) -> None:
+            self.file.close()
+
+    def failing_open(path: Path, *args: object, **kwargs: object) -> FailingFile:
+        return FailingFile(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", failing_open)
+
+    with pytest.raises(OSError, match="disk full"):
+        protrsa.write_pqr(output_path, protrsa.normalize_atoms([atom("CA", "C")]))
+
+    assert not output_path.exists()
 
 
 def test_pqr_path_derivation() -> None:
