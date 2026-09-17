@@ -114,10 +114,11 @@ Examples:
 | `/data/set/protein.cif` | `/data/set/protein.atom.sas` | `/data/set/protein.pqr` | `/data/set/protein.res.sas` |
 
 Output paths must be derived by a reusable pure function. The function must
-not create, truncate, or otherwise modify either file. File content and
-existing-output overwrite behavior remain to be defined by an output-format
-specification. The `.sas` suffix does not change the format: both files must
-use tab-separated values rather than comma-separated values.
+not create, truncate, or otherwise modify either file. The atom-SASA stage
+atomically replaces existing `.atom.sas` and `.pqr` outputs as defined in
+[`atom-sasa-naive.md`](atom-sasa-naive.md). The `.sas` suffix does not change
+the format: SASA files use tab-separated values rather than comma-separated
+values.
 
 ## Help message
 

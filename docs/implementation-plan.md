@@ -89,11 +89,11 @@ followed by the `.pdb` or `.cif` suffix removed. For example:
 | `protein.pdb.gz` | `protein.atom.sas` | `protein.res.sas` |
 | `/data/protein.cif.gz` | `/data/protein.atom.sas` | `/data/protein.res.sas` |
 
-Both `.sas` files use tab-separated values. Their exact columns, units,
-precision, headers, ordering, and overwrite policy must be defined before
-output serialization is implemented. Output files should be written only
-after parsing and calculation succeed so a failed run does not leave a partial
-result pair.
+Both `.sas` files use tab-separated values. The initial atom-output columns,
+units, precision, ordering, and atomic-overwrite policy are defined in
+[`specs/atom-sasa-naive.md`](specs/atom-sasa-naive.md). Residue-output details
+remain deferred. Output files are written only after parsing and calculation
+succeed.
 
 ## Known issues in the starting code
 
