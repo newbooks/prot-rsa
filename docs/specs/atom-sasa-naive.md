@@ -86,8 +86,9 @@ digit used by hydrogen names). Thus PDB `" CA "` falls back to carbon `C`,
 whereas `"CA  "` falls back to calcium `CA`; stripping the display atom name
 must not erase this distinction.
 
-For the initial ProtOr mapping, standard amino-acid nitrogen uses `N`; sulfur,
-phosphorus, and selenium use their corresponding ProtOr entries; backbone and
+For the initial ProtOr mapping, every nitrogen atom uses `N`, including
+nitrogen in nonstandard residues and retained `HETATM` components. Sulfur,
+phosphorus, and selenium use their corresponding ProtOr entries. Backbone and
 side-chain carbonyl oxygen uses `CARBONYL_O`; and `SER OG`, `THR OG1`, and
 `TYR OH` use `HYDROXYL_O`. Backbone `C`, side-chain amide/carboxyl carbon, and
 substituted aromatic carbon use `TRIGONAL_C_NO_H`; aromatic carbons bearing one

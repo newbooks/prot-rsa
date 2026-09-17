@@ -73,6 +73,15 @@ def test_preserve_het_retains_loose_component() -> None:
     assert len(normalized) == 1
 
 
+def test_nonstandard_nitrogen_uses_protor_nitrogen_radius() -> None:
+    normalized = protrsa.normalize_atoms(
+        [atom("N1", "N", residue_name="LIG", record_type="HETATM")]
+    )
+
+    assert normalized[0].element == "N"
+    assert normalized[0].radius == protrsa.PROTOR_RADII["N"]
+
+
 @pytest.mark.parametrize(
     ("residue", "atom_name", "expected_type"),
     [

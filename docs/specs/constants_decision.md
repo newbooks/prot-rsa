@@ -59,6 +59,10 @@ The core ProtOr radii are:
 | Phosphorus extension | 1.80 |
 | Selenium extension | 1.90 |
 
+The ProtOr nitrogen radius applies to every nitrogen atom retained in
+hydrogen-free mode, including nitrogen in nonstandard residues and retained
+`HETATM` components.
+
 The complete residue/atom-to-ProtOr-type mapping must be specified alongside
 the structure parser before radius assignment is implemented.
 

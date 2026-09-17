@@ -170,6 +170,22 @@ def test_complete_occupancy_label_beats_label_with_missing_value(tmp_path: Path)
     assert [atom.altloc for atom in atoms] == ["A", "A"]
 
 
+def test_alternate_selection_groups_atom_and_hetatm_in_one_residue(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "mixed-records.pdb"
+    path.write_text(
+        pdb_atom(1, "CA", altloc="A", occupancy=0.40)
+        + pdb_atom(2, "CB", altloc="B", occupancy=0.80, record_type="HETATM"),
+        encoding="utf-8",
+    )
+
+    atoms = protrsa.read_structure(path)
+
+    assert [atom.serial for atom in atoms] == ["2"]
+    assert [atom.altloc for atom in atoms] == ["B"]
+
+
 def test_occupancy_tie_prefers_a_then_lexical_order(tmp_path: Path) -> None:
     path = tmp_path / "tie.pdb"
     path.write_text(

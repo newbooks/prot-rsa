@@ -272,12 +272,11 @@ def _parse_model(value: str) -> int:
 def _select_alternate_locations(atoms: list[AtomRecord]) -> list[AtomRecord]:
     """Choose one residue-consistent alternate-location label by occupancy."""
 
-    residue_labels: dict[tuple[str, str, str, str, str], dict[str, list[float | None]]] = {}
+    residue_labels: dict[tuple[str, str, str, str], dict[str, list[float | None]]] = {}
     for atom in atoms:
         if not atom.altloc:
             continue
         residue_key = (
-            atom.record_type,
             atom.chain_id,
             atom.residue_sequence,
             atom.insertion_code,
@@ -287,7 +286,7 @@ def _select_alternate_locations(atoms: list[AtomRecord]) -> list[AtomRecord]:
             atom.occupancy
         )
 
-    selected: dict[tuple[str, str, str, str, str], str] = {}
+    selected: dict[tuple[str, str, str, str], str] = {}
     for residue_key, labels in residue_labels.items():
         def ranking(
             item: tuple[str, list[float | None]],
@@ -306,7 +305,6 @@ def _select_alternate_locations(atoms: list[AtomRecord]) -> list[AtomRecord]:
             retained.append(atom)
             continue
         residue_key = (
-            atom.record_type,
             atom.chain_id,
             atom.residue_sequence,
             atom.insertion_code,
