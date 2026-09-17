@@ -170,6 +170,20 @@ def test_writer_applies_umask_to_new_output(tmp_path: Path) -> None:
     assert output_path.stat().st_mode & 0o777 == 0o640
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX umask semantics")
+def test_writer_does_not_inspect_process_umask(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def unexpected_umask(mask: int) -> int:
+        raise AssertionError(f"unexpected os.umask({mask}) call")
+
+    monkeypatch.setattr(protrsa.os, "umask", unexpected_umask)
+
+    protrsa.write_pqr(
+        tmp_path / "new.pqr", protrsa.normalize_atoms([atom("CA", "C")])
+    )
+
+
 def test_pqr_path_derivation() -> None:
     assert protrsa.derive_pqr_path("inputs/model.cif.gz") == Path("inputs/model.pqr")
 

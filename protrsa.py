@@ -11,7 +11,6 @@ import os
 from pathlib import Path
 import sys
 import tempfile
-import threading
 import time
 from types import MappingProxyType
 from typing import Iterable, Sequence
@@ -27,8 +26,6 @@ DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
 MODES = ("ALL", "SIDE", "KEY")
 SUPPORTED_INPUT_SUFFIXES = (".pdb", ".cif", ".pdb.gz", ".cif.gz")
-
-_UMASK_LOCK = threading.Lock()
 
 PROTOR_RADII = MappingProxyType(
     {
@@ -624,32 +621,20 @@ def _write_new_text(output_path: str | Path, text: str) -> None:
 
     path = Path(output_path)
     try:
-        output_mode = path.stat().st_mode & 0o777
+        existing_mode = path.stat().st_mode & 0o777
     except FileNotFoundError:
-        # Python has no read-only umask API. Keep the process-wide change as short
-        # as possible and serialize calls made through this module.
-        with _UMASK_LOCK:
-            current_umask = os.umask(0)
-            os.umask(current_umask)
-        output_mode = 0o666 & ~current_umask
-    temporary_path: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w",
-            encoding="utf-8",
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            delete=False,
-        ) as output_file:
-            temporary_path = Path(output_file.name)
+        existing_mode = None
+    with tempfile.TemporaryDirectory(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+    ) as temporary_directory:
+        temporary_path = Path(temporary_directory) / path.name
+        with temporary_path.open(mode="x", encoding="utf-8") as output_file:
             output_file.write(text)
-        temporary_path.chmod(output_mode)
+        if existing_mode is not None:
+            temporary_path.chmod(existing_mode)
         os.replace(temporary_path, path)
-    except BaseException:
-        if temporary_path is not None:
-            temporary_path.unlink(missing_ok=True)
-        raise
 
 
 def write_pqr(output_path: str | Path, atoms: Sequence[NormalizedAtom]) -> None:
