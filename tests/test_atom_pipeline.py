@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import os
 from pathlib import Path
 
 import numpy as np
@@ -144,6 +145,29 @@ def test_writer_preserves_existing_file_when_atomic_replace_fails(
 
     assert output_path.read_text(encoding="utf-8") == "old content\n"
     assert list(tmp_path.glob("*.tmp")) == []
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission semantics")
+def test_writer_preserves_existing_output_permissions(tmp_path: Path) -> None:
+    output_path = tmp_path / "existing.pqr"
+    output_path.write_text("old content\n", encoding="utf-8")
+    output_path.chmod(0o640)
+
+    protrsa.write_pqr(output_path, protrsa.normalize_atoms([atom("CA", "C")]))
+
+    assert output_path.stat().st_mode & 0o777 == 0o640
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX permission semantics")
+def test_writer_applies_umask_to_new_output(tmp_path: Path) -> None:
+    output_path = tmp_path / "new.pqr"
+    previous_umask = os.umask(0o027)
+    try:
+        protrsa.write_pqr(output_path, protrsa.normalize_atoms([atom("CA", "C")]))
+    finally:
+        os.umask(previous_umask)
+
+    assert output_path.stat().st_mode & 0o777 == 0o640
 
 
 def test_pqr_path_derivation() -> None:
