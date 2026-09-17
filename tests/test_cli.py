@@ -21,11 +21,38 @@ def test_defaults(tmp_path: Path) -> None:
     arguments = protrsa.parse_args([str(input_path)])
 
     assert arguments.input == input_path
-    assert arguments.mode == "ALL"
-    assert arguments.prob_size == 1.40
-    assert arguments.workers == 4
-    assert arguments.preserve_het is False
-    assert arguments.use_h is False
+    assert arguments.mode == protrsa.DEFAULT_MODE
+    assert arguments.prob_size == protrsa.DEFAULT_PROBE_SIZE
+    assert arguments.workers == protrsa.DEFAULT_WORKERS
+    assert arguments.preserve_het is protrsa.DEFAULT_PRESERVE_HET
+    assert arguments.use_h is protrsa.DEFAULT_USE_H
+
+
+def test_scientific_constants_match_decisions() -> None:
+    assert protrsa.DEFAULT_PROBE_SIZE == 1.40
+    assert protrsa.IRON_RADIUS == 2.00
+    assert protrsa.UNKNOWN_RADIUS == protrsa.IRON_RADIUS
+    assert protrsa.EXPLICIT_ATOM_RADII["FE"] == protrsa.IRON_RADIUS
+    assert protrsa.EXPLICIT_ATOM_RADII["X"] == protrsa.UNKNOWN_RADIUS
+    assert protrsa.EXPLICIT_ATOM_RADII["H"] == 1.10
+    assert protrsa.EXPLICIT_ATOM_RADII["D"] == protrsa.EXPLICIT_ATOM_RADII["H"]
+    assert protrsa.LOOSE_HETERO_COMPONENTS == (
+        protrsa.WATER_COMPONENTS
+        | protrsa.SIMPLE_ION_COMPONENTS
+        | protrsa.CRYSTALLIZATION_ADDITIVE_COMPONENTS
+    )
+
+
+def test_probe_default_and_help_derive_from_constant(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_path = make_input(tmp_path)
+    monkeypatch.setattr(protrsa, "DEFAULT_PROBE_SIZE", 1.25)
+
+    parser = protrsa.build_parser(prog="prot-rsa")
+
+    assert parser.parse_args([str(input_path)]).prob_size == 1.25
+    assert "default: 1.25" in parser.format_help()
 
 
 @pytest.mark.parametrize(
@@ -213,6 +240,7 @@ def test_help_contains_required_contract() -> None:
         "default: 4",
         "default: false",
         "<base>.atom.sas",
+        "<base>.pqr",
         "<base>.res.sas",
         "written alongside INPUT",
     ):
@@ -235,7 +263,7 @@ def test_direct_script_help_succeeds() -> None:
     assert result.stderr == ""
 
 
-def test_valid_unimplemented_invocation_fails_without_outputs(tmp_path: Path) -> None:
+def test_empty_structure_fails_without_outputs(tmp_path: Path) -> None:
     input_path = make_input(tmp_path)
 
     with pytest.raises(SystemExit) as error:
@@ -244,3 +272,4 @@ def test_valid_unimplemented_invocation_fails_without_outputs(tmp_path: Path) ->
     assert error.value.code != 0
     assert not (tmp_path / "protein.atom.sas").exists()
     assert not (tmp_path / "protein.res.sas").exists()
+    assert not (tmp_path / "protein.pqr").exists()

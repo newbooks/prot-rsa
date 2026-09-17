@@ -5,8 +5,8 @@
 Implement the initial `prot-rsa` command-line contract in the single
 import-safe `protrsa.py` module. This specification covers argument parsing,
 input filename validation, output filename derivation, and the information
-shown by `--help`. It does not define structure parsing, SASA calculation, or
-the contents of the output files.
+shown by `--help`. Structure parsing, initial atom SASA, and current output
+contents are defined by [`atom-sasa-naive.md`](atom-sasa-naive.md).
 
 The words **must**, **should**, and **may** describe required, recommended, and
 optional behavior, respectively.
@@ -91,10 +91,13 @@ the type and validation described above.
 
 ## Output path derivation
 
-A successful calculation will produce two files alongside the input file:
+A successful initial atom calculation produces two files alongside the input:
 
-- `<base>.atom.sas` for atom solvent-accessible surface areas;
-- `<base>.res.sas` for residue solvent-accessible surface areas.
+- `<base>.atom.sas`, a TSV file for atom solvent-accessible surface areas;
+- `<base>.pqr`, normalized atoms with radii and placeholder zero charges.
+
+`<base>.res.sas` remains the reserved residue-SASA path but is not written by
+the atom-only stage.
 
 Derive `<base>` by removing a final `.gz` suffix when present and then removing
 the final `.pdb` or `.cif` suffix. Suffix removal must follow the same
@@ -103,17 +106,18 @@ all earlier parts of the filename.
 
 Examples:
 
-| Input | Atom output | Residue output |
-| --- | --- | --- |
-| `protein.pdb` | `protein.atom.sas` | `protein.res.sas` |
-| `protein.cif.gz` | `protein.atom.sas` | `protein.res.sas` |
-| `model.v2.PDB.GZ` | `model.v2.atom.sas` | `model.v2.res.sas` |
-| `/data/set/protein.cif` | `/data/set/protein.atom.sas` | `/data/set/protein.res.sas` |
+| Input | Atom output | PQR output | Reserved residue output |
+| --- | --- | --- | --- |
+| `protein.pdb` | `protein.atom.sas` | `protein.pqr` | `protein.res.sas` |
+| `protein.cif.gz` | `protein.atom.sas` | `protein.pqr` | `protein.res.sas` |
+| `model.v2.PDB.GZ` | `model.v2.atom.sas` | `model.v2.pqr` | `model.v2.res.sas` |
+| `/data/set/protein.cif` | `/data/set/protein.atom.sas` | `/data/set/protein.pqr` | `/data/set/protein.res.sas` |
 
 Output paths must be derived by a reusable pure function. The function must
 not create, truncate, or otherwise modify either file. File content and
 existing-output overwrite behavior remain to be defined by an output-format
-specification.
+specification. The `.sas` suffix does not change the format: both files must
+use tab-separated values rather than comma-separated values.
 
 ## Help message
 
@@ -126,8 +130,7 @@ usage: prot-rsa [-h] [--mode {ALL,SIDE,KEY}] [--prob-size FLOAT]
                 [--workers INTEGER] [--preserve-het] [--use-h]
                 INPUT
 
-Calculate atom and residue solvent-accessible surface areas for a protein
-structure.
+Calculate atom solvent-accessible surface areas for a protein structure.
 
 positional arguments:
   INPUT                 PDB or mmCIF input file; .pdb, .cif, .pdb.gz, and
@@ -145,7 +148,8 @@ options:
 
 output files:
   <base>.atom.sas       atom solvent-accessible surface areas
-  <base>.res.sas        residue solvent-accessible surface areas
+  <base>.pqr            normalized atoms, radii, and zero charges
+  <base>.res.sas        reserved for the later residue-SASA stage
 
 The output files are written alongside INPUT. <base> is INPUT with .gz, when
 present, and then .pdb or .cif removed.
@@ -165,10 +169,9 @@ Argument and input-path errors must:
 - return a nonzero exit status; and
 - create no output files.
 
-Successful `--help` must return status `0`. A normal successful calculation
-will also return status `0`, once calculation and serialization are
-implemented. This specification alone does not require a valid non-help
-invocation to complete a calculation or write outputs.
+Successful `--help` and a successful `ALL` atom calculation return status `0`.
+`SIDE` and `KEY` must fail clearly until their scientific selection rules are
+specified.
 
 ## Required implementation tests
 
