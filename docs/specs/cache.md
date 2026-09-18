@@ -48,7 +48,8 @@ path, create:
 
 ```python
 expanded_radii_squared = np.empty_like(expanded_radii)
-np.power(expanded_radii, 2, out=expanded_radii_squared)
+for atom_index, radius in enumerate(expanded_radii):
+    expanded_radii_squared[atom_index] = radius ** 2
 
 atom_x = atom_coordinates[:, 0]
 atom_y = atom_coordinates[:, 1]
@@ -58,7 +59,8 @@ atom_z = atom_coordinates[:, 2]
 The coordinate arrays must be strided views, not per-call copies. They are safe
 because the shared input path supplies C-contiguous `float64` coordinates. The
 radius cache is one `float64` value per atom and must not be recomputed inside
-the neighbor loop.
+the neighbor loop. The scalar power operation is intentional: it must match the
+reference expression `expanded_radii[neighbor] ** 2` exactly at boundaries.
 
 Use `expanded_radii_squared[neighbor]` for the neighbor occlusion threshold
 and `expanded_radii_squared[atom_index]` for the final target-area formula.

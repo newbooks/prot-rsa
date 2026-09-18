@@ -96,9 +96,9 @@ The ordered CSR build time is included in the total.
 
 The cache optimization was compared with the uncached occlusion-ordered
 kernel using identical CSR neighbors and five warmed-up calls. Median kernel
-times were 0.310435 s versus 0.276824 s for 1LYZ (1.12x), 0.609748 s versus
-0.538563 s for 1CA2 (1.13x), and 1.573524 s versus 1.416185 s for 1UOR
-(1.11x). Cached results were bitwise identical to the uncached kernel.
+times were 0.316585 s versus 0.282086 s for 1LYZ (1.12x), 0.612894 s versus
+0.549928 s for 1CA2 (1.11x), and 1.580235 s versus 1.412985 s for 1UOR
+(1.12x). Cached results were bitwise identical to the uncached kernel.
 
 The production-dispatch crossover was also evaluated with deterministic dense
 synthetic grids using the same 960 sphere points. Coordinates were generated

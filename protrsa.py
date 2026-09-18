@@ -1012,7 +1012,8 @@ def _atom_sasa_from_neighbors(
 
     point_count = sphere_points.shape[0]
     expanded_radii_squared = np.empty_like(expanded_radii)
-    np.power(expanded_radii, 2, out=expanded_radii_squared)
+    for atom_index, radius in enumerate(expanded_radii):
+        expanded_radii_squared[atom_index] = radius ** 2
     atom_x = atom_coordinates[:, 0]
     atom_y = atom_coordinates[:, 1]
     atom_z = atom_coordinates[:, 2]

@@ -237,6 +237,23 @@ def test_spatial_is_bitwise_equal_to_reference_for_randomized_inputs(
     np.testing.assert_array_equal(result, reference)
 
 
+def test_spatial_preserves_reference_for_boundary_sensitive_random_inputs() -> None:
+    random = np.random.default_rng(123)
+    points = protrsa.generate_sphere_points(37)
+
+    for _ in range(128):
+        coordinates = random.uniform(-5.0, 5.0, size=(8, 3))
+        radii = random.uniform(0.5, 3.0, size=8)
+        result = protrsa.atom_sasa_spatial(
+            coordinates, radii, sphere_points=points
+        )
+        reference = protrsa.atom_sasa_reference(
+            coordinates, radii, sphere_points=points
+        )
+
+        np.testing.assert_array_equal(result, reference)
+
+
 def test_spatial_handles_enclosure_and_unequal_radii() -> None:
     coordinates = [[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [9.0, 0.0, 0.0]]
     radii = [3.0, 1.0, 2.0]
