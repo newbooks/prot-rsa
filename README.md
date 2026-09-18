@@ -74,7 +74,7 @@ of unique residues represented by `ATOM` records; waters, ions, and other
 Benchmark results should be collected using the same input structures, probe
 radius, sampling resolution, and hardware. Record the protein used for each
 size category, the number of atoms and residues, software versions, and the
-CPU and GPU models alongside the final results so that the comparison is
+CPU model alongside the final results so that the comparison is
 reproducible. Spatial timings are medians of five measured calls after one
 warm-up. The benchmark retained 1,001 atoms for 1LYZ, 2,040 for 1CA2, and
 4,616 for 1UOR after the documented default filtering.

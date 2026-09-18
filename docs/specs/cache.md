@@ -16,7 +16,7 @@ occlusion rules, or the public API.
 
 The following are out of scope:
 
-- Numba, multiprocessing, threading, or GPU execution;
+- Numba, multiprocessing, or threading execution;
 - changing the five-array kernel boundary;
 - batching all neighbors into an `N * P` or `P * K` temporary;
 - reduced precision, approximate comparisons, or `fastmath`;

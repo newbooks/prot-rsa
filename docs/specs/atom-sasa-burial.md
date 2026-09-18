@@ -14,8 +14,8 @@ zero accessible surface area and need not construct or test sphere points.
 
 This is a local optimization of the existing spatial/CSR pipeline. It must
 preserve the full atom array, atom indices, CSR rows, output order, and public
-API. The mask is metadata consumed by NumPy, Numba, multiprocessing, and future
-GPU kernels; it is not a filtering operation that removes atoms from the
+API. The mask is metadata consumed by NumPy, Numba, and multiprocessing; it is
+not a filtering operation that removes atoms from the
 calculation.
 
 This stage includes:
@@ -32,7 +32,7 @@ The following are out of scope:
 - removing atoms or compacting coordinates and radii;
 - changing the reference implementation;
 - partial-occlusion classification;
-- Numba, multiprocessing, threading, or GPU-specific code; and
+- Numba, multiprocessing, or threading-specific code; and
 - approximate geometry or reduced precision.
 
 ## Geometric contract

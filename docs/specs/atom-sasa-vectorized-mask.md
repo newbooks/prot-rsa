@@ -26,7 +26,7 @@ This stage includes:
 The following remain out of scope:
 
 - Numba or another JIT compiler;
-- multiprocessing, threading, or GPU execution;
+- multiprocessing or threading execution;
 - changes to KD-tree discovery or CSR layout;
 - spherical-cap or dot-threshold reformulations;
 - reduced precision, `fastmath`, or approximate comparisons;
@@ -359,5 +359,5 @@ This stage is complete when:
 - all existing and new tests pass;
 - required benchmark results and environment details are recorded;
 - the README retains the cKDTree baseline and adds the vectorized result; and
-- no Numba, parallel execution, GPU path, or new scientific approximation is
+- no Numba, parallel execution, or new scientific approximation is
   introduced.

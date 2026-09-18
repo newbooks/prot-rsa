@@ -6,7 +6,7 @@
 
 Implement a deterministic, serial reference calculation of absolute
 solvent-accessible surface area (SASA) for each atom. This implementation is
-the correctness oracle for later optimized CPU, multiprocessing, and GPU
+the correctness oracle for later optimized CPU and multiprocessing
 implementations.
 
 This stage includes atom SASA only. It must not calculate or serialize residue
@@ -173,7 +173,7 @@ def atom_sasa_reference(
 ```
 
 Neither function may read files, inspect command-line arguments, create worker
-processes, initialize a GPU runtime, write output, or mutate caller-owned
+processes, initialize a JIT runtime, write output, or mutate caller-owned
 objects.
 
 This stage does not connect the numerical function to `main()`. Until parsing,
@@ -321,7 +321,6 @@ Do not add any of the following to the reference function:
 - burial or overlap shortcuts;
 - Numba or another JIT compiler;
 - multiprocessing or threading;
-- GPU execution;
 - reduced precision;
 - random sampling; or
 - a full `(N, P, N, 3)` or `(P, N, 3)` points-by-neighbors temporary.

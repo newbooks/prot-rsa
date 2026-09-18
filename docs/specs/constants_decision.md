@@ -181,4 +181,4 @@ Implementation tests must verify:
 8. Polymer or polymer-linked components are not discarded based only on their
    component identifier.
 9. Radius and component classification results are identical across serial,
-   multiprocessing, CPU, and GPU execution.
+   multiprocessing and CPU execution.

@@ -4,7 +4,7 @@
 
 Build `prot-rsa` as a public PyPI application for calculating protein atom and residue solvent-accessible surface area (SASA). The application will live in one import-safe Python file, `protrsa.py`, which can be run directly, invoked through the installed `prot-rsa` command, or imported as the `protrsa` module.
 
-The implementation will start from the previous PyMCCE SASA code while correcting known issues, defining a stable scientific contract, and adding validated CPU, multiprocessing, and optional GPU execution paths.
+The implementation will start from the previous PyMCCE SASA code while correcting known issues, defining a stable scientific contract, and adding validated CPU and multiprocessing execution paths.
 
 ## Interfaces
 
@@ -19,7 +19,7 @@ import protrsa
 result = protrsa.calculate_sasa(...)
 ```
 
-Importing `protrsa` must not parse command-line arguments, create worker processes, initialize a GPU runtime, or perform calculations. Direct execution will be protected by:
+Importing `protrsa` must not parse command-line arguments, create worker processes, initialize Numba, or perform calculations. Direct execution will be protected by:
 
 ```python
 if __name__ == "__main__":
@@ -222,7 +222,7 @@ Benchmark point-first traversal, neighbor-first traversal with an exposed-point 
 
 Use Numba kernel caching and evaluate `parallel=True` with `prange` over independent atoms. Do not enable `fastmath=True` unless boundary-sensitive tests show no scientifically relevant change.
 
-The KD-tree remains the initial production spatial index. Benchmark a uniform linked-cell implementation for very large or repeated calculations and GPU execution, but do not replace the simpler KD-tree without representative evidence.
+The KD-tree remains the initial production spatial index. Benchmark a uniform linked-cell implementation for very large or repeated calculations, but do not replace the simpler KD-tree without representative evidence.
 
 Reuse immutable sphere points, expanded radii, spatial indexes, filtered and ordered CSR neighbors, complete-burial flags, and atom-to-residue mappings when inputs and parameters are unchanged. Cache invalidation must prevent stale reuse after coordinates, radii, probe radius, or sphere resolution changes.
 
@@ -244,19 +244,7 @@ Serial and multiprocessing results must agree within the approved tolerance.
 
 Benchmark four-process execution against a four-thread Numba `prange` kernel. Threads may avoid serialization and memory-copying overhead. Do not run multiple Numba threads inside every worker process by default, because nested parallelism can oversubscribe the machine. Control worker thread counts explicitly and establish measured crossover thresholds so small structures remain serial.
 
-## Phase 7: Add an optional GPU backend
-
-Support `backend="auto"`, `"cpu"`, and `"gpu"`:
-
-- `auto` uses a supported GPU when installed and operational, otherwise CPU.
-- `cpu` never initializes a GPU runtime.
-- `gpu` reports a clear error if GPU execution is unavailable.
-
-GPU dependencies will be optional so normal PyPI installation remains portable. Select the framework after evaluating platform support, package size, and supported Python versions. GPU and CPU implementations must share radii, sphere points, boundary rules, aggregation, and validated numerical tolerances.
-
-GPU work will be coarse-grained, processing batches of atoms and sphere points rather than launching work for individual atoms or residues. Benchmark transfer and launch overhead separately, and retain CPU execution for workloads too small to benefit.
-
-## Phase 8: Parse structures
+## Phase 7: Parse structures
 
 Keep parsing separate from numerical calculation. The parser will produce coordinates, elements, radii, atom identifiers, residue identifiers, chain identifiers, and model/alternate-location information.
 
@@ -303,7 +291,6 @@ Every new function will receive focused `pytest` coverage, and tests will run be
 
 - Reference versus optimized CPU
 - Serial versus four-worker multiprocessing
-- CPU versus GPU when available
 - Identical output ordering across backends
 
 ### Performance validation
@@ -313,7 +300,7 @@ Every new function will receive focused `pytest` coverage, and tests will run be
 - Compare serial Numba, four-thread Numba, and four-process execution.
 - Measure peak memory as well as elapsed time.
 - Benchmark small, medium, and large representative structures.
-- Establish measured thresholds for serial, parallel, and GPU selection.
+- Establish measured thresholds for serial and parallel selection.
 - Treat material slowdowns as regressions unless justified by correctness or maintainability.
 
 ### Scientific validation
@@ -343,7 +330,6 @@ Before the stable release:
 
 - Document the algorithm, scientific conventions, limitations, and expected accuracy.
 - Provide CLI and Python examples.
-- Document optional GPU installation separately.
 - State supported Python versions and platforms accurately.
 - Publish benchmark conditions with performance results.
 - Record user-visible and compatibility changes.
@@ -365,8 +351,7 @@ Before the stable release:
    kernel layouts and defer four-worker multiprocessing/thread coordination to
    its own phase without oversubscription.
 8. Implement and test structure parsing and the CLI.
-9. Select, implement, and validate an optional GPU backend.
-10. Run independent scientific validation and benchmarks.
-11. Complete documentation and validate PyPI distributions.
+9. Run independent scientific validation and benchmarks.
+10. Complete documentation and validate PyPI distributions.
 
 No phase that depends on an unresolved scientific convention will proceed by assumption.

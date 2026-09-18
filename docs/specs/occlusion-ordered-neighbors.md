@@ -220,7 +220,7 @@ This optimization must directly support the later Numba stage:
 
 A Numba point-first loop benefits from the same ordering because it can stop
 testing each sample at its first blocker. The ordered CSR must therefore be
-reusable by NumPy, Numba, multiprocessing, and optional GPU implementations.
+reusable by NumPy, Numba, and multiprocessing implementations.
 
 ## Memory and complexity
 
@@ -325,5 +325,5 @@ This stage is complete when:
 - focused and full tests pass;
 - required benchmark results and conditions are recorded;
 - the README retains prior rows and adds the new optimization; and
-- no Numba, multiprocessing, GPU execution, or scientific approximation is
+- no Numba, multiprocessing, or scientific approximation is
   introduced.
