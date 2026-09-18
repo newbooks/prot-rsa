@@ -57,7 +57,7 @@ positional arguments:
 options:
   --mode {ALL,SIDE,KEY} Atom selection mode (default: ALL)
   --prob-size FLOAT     Solvent probe radius in angstroms (default: 1.40)
-  --workers INTEGER     Number of worker processes (default: 4)
+  --workers INTEGER     Number of Numba CPU threads (default: 1)
   --preserve-het        Preserve loose hetero-atoms (default: false)
   --use-h               Use hydrogen atoms supplied in the input file (default: false)
 ```
@@ -230,14 +230,14 @@ Use `float64` for the reference and initial CPU implementation. Evaluate `float3
 
 ## Phase 6: Add multiprocessing
 
-Use multiprocessing when the workload benefits, with four workers by default.
+Use multiprocessing when the workload benefits, with process-worker semantics
+defined separately from the Numba CPU-thread `workers` option.
 
 - Partition target atoms into stable contiguous chunks.
 - Keep shared inputs read-only and minimize copies where practical.
 - Preserve atom order when merging worker outputs.
 - Use serial execution for workloads too small to offset process overhead.
-- Support `workers=1` for debugging and reproducibility.
-- Expose `--workers`, defaulting to `4`.
+- Support a separate process-count control when multiprocessing is introduced.
 - Create processes only inside explicit calls and the guarded CLI path.
 
 Serial and multiprocessing results must agree within the approved tolerance.
@@ -348,10 +348,12 @@ Before the stable release:
    [`specs/atom-sasa-burial.md`](specs/atom-sasa-burial.md).
 7. Implement and test the Numba kernel according to
    [`specs/atom-sasa-numba.md`](specs/atom-sasa-numba.md), then benchmark
-   kernel layouts and defer four-worker multiprocessing/thread coordination to
-   its own phase without oversubscription.
-8. Implement and test structure parsing and the CLI.
-9. Run independent scientific validation and benchmarks.
-10. Complete documentation and validate PyPI distributions.
+   kernel layouts.
+8. Implement and benchmark Numba thread parallelism according to
+   [`specs/atom-sasa-numba-parallel.md`](specs/atom-sasa-numba-parallel.md),
+   without changing multiprocessing worker semantics.
+9. Implement and test structure parsing and the CLI.
+10. Run independent scientific validation and benchmarks.
+11. Complete documentation and validate PyPI distributions.
 
 No phase that depends on an unresolved scientific convention will proceed by assumption.

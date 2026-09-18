@@ -343,6 +343,30 @@ def test_spatial_rejects_unknown_backend() -> None:
         protrsa.atom_sasa_spatial([[0.0, 0.0, 0.0]], [1.0], backend="invalid")
 
 
+def test_parallel_workers_restore_numba_thread_count() -> None:
+    numba = pytest.importorskip("numba")
+    coordinates = np.array([[0.0, 0.0, 0.0], [2.0, 0.3, 0.0]])
+    radii = np.array([1.5, 1.2])
+    original = numba.get_num_threads()
+    try:
+        protrsa.atom_sasa_spatial(
+            coordinates,
+            radii,
+            sphere_points=protrsa.generate_sphere_points(31),
+            workers=1,
+        )
+        assert numba.get_num_threads() == original
+    finally:
+        numba.set_num_threads(original)
+
+
+def test_parallel_workers_require_positive_integer() -> None:
+    with pytest.raises(ValueError, match="workers must be a positive integer"):
+        protrsa.atom_sasa_spatial(
+            [[0.0, 0.0, 0.0]], [1.0], workers=0
+        )
+
+
 def test_spatial_translation_permutation_and_repeat_invariants() -> None:
     coordinates = np.array(
         [[0.0, 0.0, 0.0], [2.0, 0.2, 0.0], [0.5, 3.0, 0.1]]

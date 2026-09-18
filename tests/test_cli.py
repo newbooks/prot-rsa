@@ -237,7 +237,7 @@ def test_help_contains_required_contract() -> None:
         "use hydrogen atoms supplied in the input file",
         "default: ALL",
         "default: 1.40",
-        "default: 4",
+            "default: 1",
         "default: false",
         "<base>.atom.sas",
         "<base>.pqr",
