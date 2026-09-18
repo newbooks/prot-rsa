@@ -177,12 +177,20 @@ For each target atom `i` in input order:
        atom_coordinates[neighbor],
        out=displacements,
    )
-   np.einsum(
-       "ij,ij->i",
+   np.multiply(
        displacements,
        displacements,
+       out=displacements,
+   )
+   np.add(
+       displacements[:, 0],
+       displacements[:, 1],
        out=squared_distances,
-       optimize=False,
+   )
+   np.add(
+       squared_distances,
+       displacements[:, 2],
+       out=squared_distances,
    )
    np.greater(
        squared_distances,
@@ -228,12 +236,14 @@ All geometry remains `float64`. The vectorized kernel must retain:
 - deterministic absolute SASA in Å².
 
 The target result is bitwise equality with `atom_sasa_reference()` using
-`np.array_equal`. Vectorized ufuncs and `np.einsum()` can have platform-specific
-floating-point behavior near exact boundaries. Therefore tests must include
-deliberate boundary geometries. If a supported platform produces a different
-exposed-point classification, stop and document the exact geometry and
-operations before changing the implementation or relaxing equality. Do not
-silently add a numerical tolerance to the blocking comparison.
+`np.array_equal`. Squared components must be added in x, y, z order as shown
+above to reproduce the reference's three-element `np.dot` arithmetic. Batched
+`np.einsum()` is not permitted because its reduction can round differently at
+exact boundaries. Tests must include deliberate boundary geometries. If a
+supported platform produces a different exposed-point classification, stop
+and document the exact geometry and operations before changing the
+implementation or relaxing equality. Do not silently add a numerical
+tolerance to the blocking comparison.
 
 The spherical-cap identity and a dot-product threshold are explicitly
 excluded in this stage because they rearrange the boundary-sensitive

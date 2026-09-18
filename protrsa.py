@@ -1029,12 +1029,20 @@ def _atom_sasa_from_neighbors(
                     atom_coordinates[other_index],
                     out=displacements,
                 )
-                np.einsum(
-                    "ij,ij->i",
+                np.multiply(
                     displacements,
                     displacements,
+                    out=displacements,
+                )
+                np.add(
+                    displacements[:, 0],
+                    displacements[:, 1],
                     out=squared_distances,
-                    optimize=False,
+                )
+                np.add(
+                    squared_distances,
+                    displacements[:, 2],
+                    out=squared_distances,
                 )
                 np.greater(
                     squared_distances,
