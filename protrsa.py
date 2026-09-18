@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from dataclasses import dataclass
 import gzip
 import math
@@ -16,6 +17,7 @@ from types import MappingProxyType
 from typing import Iterable, Sequence
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 
 DEFAULT_MODE = "ALL"
@@ -26,6 +28,20 @@ DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
 MODES = ("ALL", "SIDE", "KEY")
 SUPPORTED_INPUT_SUFFIXES = (".pdb", ".cif", ".pdb.gz", ".cif.gz")
+ATOM_SASA_COLUMNS = (
+    "atom_index",
+    "record_type",
+    "source_id",
+    "atom_name",
+    "residue_name",
+    "chain_id",
+    "residue_sequence",
+    "insertion_code",
+    "element",
+    "radius_A",
+    "sasa_A2",
+)
+ATOM_IDENTITY_COLUMNS = ATOM_SASA_COLUMNS[:-2]
 
 PROTOR_RADII = MappingProxyType(
     {
@@ -601,14 +617,14 @@ def calculate_atom_sasa(
     probe_size: float = DEFAULT_PROBE_SIZE,
     sphere_points: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Calculate absolute SASA for normalized atoms with the serial oracle."""
+    """Calculate absolute SASA for normalized atoms with spatial pruning."""
 
     coordinates = np.asarray(
         [(atom.source.x, atom.source.y, atom.source.z) for atom in atoms],
         dtype=np.float64,
     ).reshape((-1, 3))
     radii = np.asarray([atom.radius for atom in atoms], dtype=np.float64)
-    return atom_sasa_reference(
+    return atom_sasa_spatial(
         coordinates,
         radii,
         probe_size=probe_size,
@@ -662,10 +678,7 @@ def write_atom_sasa_tsv(
 
     if len(atoms) != len(atom_sasa):
         raise ValueError("atoms and atom_sasa must have the same length")
-    lines = [
-        "atom_index\trecord_type\tsource_id\tatom_name\tresidue_name\tchain_id\t"
-        "residue_sequence\tinsertion_code\telement\tradius_A\tsasa_A2\n"
-    ]
+    lines = ["\t".join(ATOM_SASA_COLUMNS) + "\n"]
     for index, (atom, sasa) in enumerate(zip(atoms, atom_sasa), start=1):
         source = atom.source
         lines.append(
@@ -675,6 +688,99 @@ def write_atom_sasa_tsv(
             f"{float(sasa):.6f}\n"
         )
     _write_new_text(output_path, "".join(lines))
+
+
+def _read_atom_sasa_tsv(
+    input_path: str | Path,
+) -> tuple[list[tuple[str, ...]], np.ndarray]:
+    """Read atom identities and SASA values from one prot-rsa TSV file."""
+
+    path = Path(input_path)
+    identities: list[tuple[str, ...]] = []
+    sasa_values: list[float] = []
+    with path.open(mode="r", encoding="utf-8", newline="") as input_file:
+        reader = csv.DictReader(input_file, delimiter="\t")
+        if reader.fieldnames != list(ATOM_SASA_COLUMNS):
+            expected = "\t".join(ATOM_SASA_COLUMNS)
+            actual = "\t".join(reader.fieldnames or [])
+            raise ValueError(
+                f"'{path}' has an unexpected header; expected {expected!r}, "
+                f"found {actual!r}"
+            )
+        for line_number, row in enumerate(reader, start=2):
+            if None in row or any(
+                row[column] is None for column in ATOM_SASA_COLUMNS
+            ):
+                raise ValueError(f"'{path}' has a malformed row on line {line_number}")
+            identities.append(tuple(row[column] for column in ATOM_IDENTITY_COLUMNS))
+            try:
+                sasa = float(row["sasa_A2"])
+            except ValueError as error:
+                raise ValueError(
+                    f"'{path}' has an invalid sasa_A2 value on line {line_number}"
+                ) from error
+            if not math.isfinite(sasa):
+                raise ValueError(
+                    f"'{path}' has a non-finite sasa_A2 value on line {line_number}"
+                )
+            sasa_values.append(sasa)
+
+    if not identities:
+        raise ValueError(f"'{path}' contains no atom rows")
+    return identities, np.asarray(sasa_values, dtype=np.float64)
+
+
+def compare_atom_sasa_files(
+    first_path: str | Path,
+    second_path: str | Path,
+) -> tuple[int, float]:
+    """Verify matching atom rows and return their count and SASA MAE."""
+
+    first_identities, first_sasa = _read_atom_sasa_tsv(first_path)
+    second_identities, second_sasa = _read_atom_sasa_tsv(second_path)
+    if len(first_identities) != len(second_identities):
+        raise ValueError(
+            "atom count mismatch: "
+            f"'{first_path}' has {len(first_identities)} rows, "
+            f"'{second_path}' has {len(second_identities)} rows"
+        )
+    for row_number, (first_atom, second_atom) in enumerate(
+        zip(first_identities, second_identities),
+        start=1,
+    ):
+        if first_atom != second_atom:
+            differing_columns = [
+                column
+                for column, first_value, second_value in zip(
+                    ATOM_IDENTITY_COLUMNS, first_atom, second_atom
+                )
+                if first_value != second_value
+            ]
+            raise ValueError(
+                f"atom mismatch at data row {row_number}; differing columns: "
+                + ", ".join(differing_columns)
+            )
+    mae = float(np.mean(np.abs(first_sasa - second_sasa)))
+    return len(first_identities), mae
+
+
+def compare_sas_main(argv: Sequence[str] | None = None) -> int:
+    """Run the atom-SASA comparison command-line interface."""
+
+    parser = argparse.ArgumentParser(
+        prog="prot-rsa-compare",
+        description="Verify matching atom rows and calculate SASA MAE.",
+    )
+    parser.add_argument("first", type=Path, metavar="FIRST.atom.sas")
+    parser.add_argument("second", type=Path, metavar="SECOND.atom.sas")
+    arguments = parser.parse_args(argv)
+    try:
+        atom_count, mae = compare_atom_sasa_files(arguments.first, arguments.second)
+    except (OSError, ValueError) as error:
+        parser.error(str(error))
+    print(f"Atoms matched: {atom_count}")
+    print(f"SASA MAE: {mae:.6f} Å²")
+    return 0
 
 
 def generate_sphere_points(
@@ -711,6 +817,61 @@ def atom_sasa_reference(
     sphere_points: np.ndarray | None = None,
 ) -> np.ndarray:
     """Return deterministic absolute per-atom SASA in square angstroms."""
+
+    atom_coordinates, atom_radii, probe_radius, points = _prepare_atom_sasa_inputs(
+        coordinates,
+        radii,
+        probe_size=probe_size,
+        sphere_points=sphere_points,
+    )
+
+    atom_count = atom_coordinates.shape[0]
+    if atom_count == 0:
+        return np.empty(0, dtype=np.float64)
+
+    expanded_radii = atom_radii + probe_radius
+    if not np.all(np.isfinite(expanded_radii)):
+        raise ValueError("probe-expanded radii must be finite")
+
+    point_count = points.shape[0]
+    surface_areas = np.empty(atom_count, dtype=np.float64)
+    for atom_index in range(atom_count):
+        exposed_count = 0
+        for unit_point in points:
+            sample_point = (
+                atom_coordinates[atom_index]
+                + expanded_radii[atom_index] * unit_point
+            )
+            blocked = False
+            for other_index in range(atom_count):
+                if other_index == atom_index:
+                    continue
+                displacement = sample_point - atom_coordinates[other_index]
+                squared_distance = float(np.dot(displacement, displacement))
+                if squared_distance <= expanded_radii[other_index] ** 2:
+                    blocked = True
+                    break
+            if not blocked:
+                exposed_count += 1
+        surface_areas[atom_index] = (
+            4.0
+            * math.pi
+            * expanded_radii[atom_index] ** 2
+            * exposed_count
+            / point_count
+        )
+
+    return surface_areas
+
+
+def _prepare_atom_sasa_inputs(
+    coordinates,
+    radii,
+    *,
+    probe_size: float,
+    sphere_points: np.ndarray | None,
+) -> tuple[np.ndarray, np.ndarray, float, np.ndarray]:
+    """Validate and normalize inputs shared by atom-SASA implementations."""
 
     if isinstance(probe_size, (bool, np.bool_)) or not isinstance(
         probe_size, numbers.Real
@@ -765,6 +926,84 @@ def atom_sasa_reference(
         if not np.allclose(point_norms, 1.0, rtol=1e-12, atol=1e-12):
             raise ValueError("sphere_points must contain unit vectors")
 
+    return atom_coordinates, atom_radii, probe_radius, points
+
+
+def _build_spatial_neighbors(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return deterministic CSR neighbors for overlapping expanded spheres."""
+
+    atom_count = atom_coordinates.shape[0]
+    if atom_count < 2:
+        return (
+            np.zeros(atom_count + 1, dtype=np.intp),
+            np.empty(0, dtype=np.intp),
+        )
+
+    maximum_radius = float(np.max(expanded_radii))
+    query_cutoff = np.nextafter(2.0 * maximum_radius, np.inf)
+    pairs = np.asarray(
+        cKDTree(atom_coordinates).query_pairs(
+            query_cutoff,
+            eps=0.0,
+            output_type="ndarray",
+        ),
+        dtype=np.intp,
+    ).reshape((-1, 2))
+    if pairs.shape[0] == 0:
+        return (
+            np.zeros(atom_count + 1, dtype=np.intp),
+            np.empty(0, dtype=np.intp),
+        )
+
+    displacements = atom_coordinates[pairs[:, 0]] - atom_coordinates[pairs[:, 1]]
+    squared_distances = np.einsum("ij,ij->i", displacements, displacements)
+    summed_radii = expanded_radii[pairs[:, 0]] + expanded_radii[pairs[:, 1]]
+    squared_cutoffs = summed_radii * summed_radii
+    keep = (squared_distances <= squared_cutoffs) | np.isclose(
+        squared_distances,
+        squared_cutoffs,
+        rtol=8.0 * np.finfo(np.float64).eps,
+        atol=0.0,
+    )
+    pairs = pairs[keep]
+    if pairs.shape[0] == 0:
+        return (
+            np.zeros(atom_count + 1, dtype=np.intp),
+            np.empty(0, dtype=np.intp),
+        )
+
+    rows = np.concatenate((pairs[:, 0], pairs[:, 1]))
+    columns = np.concatenate((pairs[:, 1], pairs[:, 0]))
+    order = np.lexsort((columns, rows))
+    rows = rows[order]
+    indices = np.ascontiguousarray(columns[order], dtype=np.intp)
+    counts = np.bincount(rows, minlength=atom_count)
+    offsets = np.empty(atom_count + 1, dtype=np.intp)
+    offsets[0] = 0
+    np.cumsum(counts, out=offsets[1:])
+    return offsets, indices
+
+
+def atom_sasa_spatial(
+    coordinates,
+    radii,
+    *,
+    probe_size: float = DEFAULT_PROBE_SIZE,
+    sphere_points: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return atom SASA using KD-tree-pruned neighbor lists."""
+
+    atom_coordinates, atom_radii, probe_radius, points = _prepare_atom_sasa_inputs(
+        coordinates,
+        radii,
+        probe_size=probe_size,
+        sphere_points=sphere_points,
+    )
+
+    atom_count = atom_coordinates.shape[0]
     if atom_count == 0:
         return np.empty(0, dtype=np.float64)
 
@@ -772,26 +1011,34 @@ def atom_sasa_reference(
     if not np.all(np.isfinite(expanded_radii)):
         raise ValueError("probe-expanded radii must be finite")
 
+    neighbor_offsets, neighbor_indices = _build_spatial_neighbors(
+        atom_coordinates,
+        expanded_radii,
+    )
     point_count = points.shape[0]
     surface_areas = np.empty(atom_count, dtype=np.float64)
     for atom_index in range(atom_count):
-        exposed_count = 0
-        for unit_point in points:
-            sample_point = (
-                atom_coordinates[atom_index]
-                + expanded_radii[atom_index] * unit_point
-            )
-            blocked = False
-            for other_index in range(atom_count):
-                if other_index == atom_index:
-                    continue
-                displacement = sample_point - atom_coordinates[other_index]
-                squared_distance = float(np.dot(displacement, displacement))
-                if squared_distance <= expanded_radii[other_index] ** 2:
-                    blocked = True
-                    break
-            if not blocked:
-                exposed_count += 1
+        neighbor_start = neighbor_offsets[atom_index]
+        neighbor_stop = neighbor_offsets[atom_index + 1]
+        if neighbor_start == neighbor_stop:
+            exposed_count = point_count
+        else:
+            exposed_count = 0
+            for unit_point in points:
+                sample_point = (
+                    atom_coordinates[atom_index]
+                    + expanded_radii[atom_index] * unit_point
+                )
+                blocked = False
+                for neighbor_position in range(neighbor_start, neighbor_stop):
+                    other_index = neighbor_indices[neighbor_position]
+                    displacement = sample_point - atom_coordinates[other_index]
+                    squared_distance = float(np.dot(displacement, displacement))
+                    if squared_distance <= expanded_radii[other_index] ** 2:
+                        blocked = True
+                        break
+                if not blocked:
+                    exposed_count += 1
         surface_areas[atom_index] = (
             4.0
             * math.pi

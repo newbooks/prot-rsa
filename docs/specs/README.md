@@ -13,3 +13,5 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
   modes, Fe/unknown fallbacks, and loose hetero-component classifications.
 - [`atom-sasa-naive.md`](atom-sasa-naive.md): deterministic 960-point
   Shrake–Rupley reference calculation of absolute per-atom SASA.
+- [`atom-sasa-spatial.md`](atom-sasa-spatial.md): conservative `cKDTree`
+  neighbor pruning for the first optimized atom-SASA production path.
