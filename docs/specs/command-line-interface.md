@@ -62,7 +62,7 @@ error, not an argument-parser responsibility.
 | --- | --- | --- | --- |
 | `--mode {ALL,SIDE,KEY}` | String normalized to uppercase | `ALL` | Accept the three values case-insensitively; reject all others. |
 | `--prob-size FLOAT` | Floating-point number | `1.40` | Must be finite and greater than zero. |
-| `--workers INTEGER` | Integer | `4` | Numba CPU thread count; must be greater than zero. |
+| `--workers INTEGER` | Integer | `1` | Numba CPU thread count; must be greater than zero. |
 | `--preserve-het` | Boolean presence flag | `False` | Supplying the flag sets the value to `True`; it takes no argument. |
 | `--use-h` | Boolean presence flag | `False` | Supplying the flag sets the value to `True`; it takes no argument. |
 

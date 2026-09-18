@@ -367,6 +367,15 @@ def test_parallel_workers_require_positive_integer() -> None:
         )
 
 
+def test_calculate_atom_sasa_validates_workers_even_for_empty_input() -> None:
+    with pytest.raises(TypeError, match="workers must be a positive integer"):
+        protrsa.calculate_atom_sasa([], workers=True)
+    with pytest.raises(ValueError, match="workers must be a positive integer"):
+        protrsa.atom_sasa_spatial(
+            np.empty((0, 3)), np.empty(0), workers=0
+        )
+
+
 def test_spatial_translation_permutation_and_repeat_invariants() -> None:
     coordinates = np.array(
         [[0.0, 0.0, 0.0], [2.0, 0.2, 0.0], [0.5, 3.0, 0.1]]

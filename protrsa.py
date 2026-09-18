@@ -44,6 +44,17 @@ ATOM_SASA_COLUMNS = (
 )
 ATOM_IDENTITY_COLUMNS = ATOM_SASA_COLUMNS[:-2]
 
+
+def _validate_workers(workers: int) -> int:
+    """Validate and normalize a positive Numba thread count."""
+
+    if isinstance(workers, (bool, np.bool_)) or not isinstance(workers, numbers.Integral):
+        raise TypeError("workers must be a positive integer")
+    workers = int(workers)
+    if workers < 1:
+        raise ValueError("workers must be a positive integer")
+    return workers
+
 PROTOR_RADII = MappingProxyType(
     {
         "TRIGONAL_C_NO_H": 1.61,
@@ -621,6 +632,8 @@ def calculate_atom_sasa(
     workers: int = DEFAULT_WORKERS,
 ) -> np.ndarray:
     """Calculate absolute SASA for normalized atoms with spatial pruning."""
+
+    workers = _validate_workers(workers)
 
     coordinates = np.asarray(
         [(atom.source.x, atom.source.y, atom.source.z) for atom in atoms],
@@ -1390,11 +1403,7 @@ def _numba_sasa_parallel_or_none(
         import numba
     except ImportError:
         return None
-    if isinstance(workers, (bool, np.bool_)) or not isinstance(workers, numbers.Integral):
-        raise TypeError("workers must be a positive integer")
-    workers = int(workers)
-    if workers < 1:
-        raise ValueError("workers must be a positive integer")
+    workers = _validate_workers(workers)
     previous_threads = numba.get_num_threads()
     try:
         numba.set_num_threads(workers)
@@ -1428,6 +1437,7 @@ def atom_sasa_spatial(
 ) -> np.ndarray:
     """Return atom SASA using KD-tree-pruned neighbor lists."""
 
+    workers = _validate_workers(workers)
     if backend not in {"auto", "cpu"}:
         raise ValueError("backend must be 'auto' or 'cpu'")
 
@@ -1465,6 +1475,16 @@ def atom_sasa_spatial(
         neighbor_indices,
         buried,
         workers,
+    )
+    if numba_result is not None:
+        return numba_result
+    numba_result = _numba_sasa_or_none(
+        atom_coordinates,
+        expanded_radii,
+        points,
+        neighbor_offsets,
+        neighbor_indices,
+        buried,
     )
     if numba_result is not None:
         return numba_result
