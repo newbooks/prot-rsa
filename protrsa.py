@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import time
 from types import MappingProxyType
 from typing import Iterable, Sequence
@@ -1059,6 +1060,7 @@ def _build_buried_mask_python(
 
 
 _NUMBA_BURIED_MASK_KERNEL = None
+_NUMBA_THREAD_LOCK = threading.Lock()
 
 
 def _numba_buried_mask_kernel_impl(
@@ -1109,25 +1111,26 @@ def _numba_buried_mask_or_none(
     workers = int(workers)
     if workers < 1:
         raise ValueError("workers must be a positive integer")
-    previous_threads = numba.get_num_threads()
-    try:
-        numba.set_num_threads(workers)
-        if _NUMBA_BURIED_MASK_KERNEL is None:
-            _NUMBA_PRANGE = numba.prange
-            _NUMBA_BURIED_MASK_KERNEL = numba.njit(
-                parallel=True, cache=True
-            )(_numba_buried_mask_kernel_impl)
-        return _NUMBA_BURIED_MASK_KERNEL(
-            atom_coordinates,
-            expanded_radii,
-            neighbor_offsets,
-            neighbor_indices,
-        )
-    except numba.core.errors.NumbaError:
-        _NUMBA_BURIED_MASK_KERNEL = None
-        return None
-    finally:
-        numba.set_num_threads(previous_threads)
+    with _NUMBA_THREAD_LOCK:
+        previous_threads = numba.get_num_threads()
+        try:
+            numba.set_num_threads(workers)
+            if _NUMBA_BURIED_MASK_KERNEL is None:
+                _NUMBA_PRANGE = numba.prange
+                _NUMBA_BURIED_MASK_KERNEL = numba.njit(
+                    parallel=True, cache=True
+                )(_numba_buried_mask_kernel_impl)
+            return _NUMBA_BURIED_MASK_KERNEL(
+                atom_coordinates,
+                expanded_radii,
+                neighbor_offsets,
+                neighbor_indices,
+            )
+        except numba.core.errors.NumbaError:
+            _NUMBA_BURIED_MASK_KERNEL = None
+            return None
+        finally:
+            numba.set_num_threads(previous_threads)
 
 
 def _build_buried_mask(
@@ -1413,27 +1416,28 @@ def _numba_sasa_parallel_or_none(
     except ImportError:
         return None
     workers = _validate_workers(workers)
-    previous_threads = numba.get_num_threads()
-    try:
-        numba.set_num_threads(workers)
-        if _NUMBA_SASA_PARALLEL_KERNEL is None:
-            _NUMBA_PRANGE = numba.prange
-            _NUMBA_SASA_PARALLEL_KERNEL = numba.njit(
-                parallel=True, cache=True
-            )(_numba_sasa_parallel_kernel_impl)
-        return _NUMBA_SASA_PARALLEL_KERNEL(
-            atom_coordinates,
-            expanded_radii,
-            sphere_points,
-            neighbor_offsets,
-            neighbor_indices,
-            buried,
-        )
-    except numba.core.errors.NumbaError:
-        _NUMBA_SASA_PARALLEL_KERNEL = None
-        return None
-    finally:
-        numba.set_num_threads(previous_threads)
+    with _NUMBA_THREAD_LOCK:
+        previous_threads = numba.get_num_threads()
+        try:
+            numba.set_num_threads(workers)
+            if _NUMBA_SASA_PARALLEL_KERNEL is None:
+                _NUMBA_PRANGE = numba.prange
+                _NUMBA_SASA_PARALLEL_KERNEL = numba.njit(
+                    parallel=True, cache=True
+                )(_numba_sasa_parallel_kernel_impl)
+            return _NUMBA_SASA_PARALLEL_KERNEL(
+                atom_coordinates,
+                expanded_radii,
+                sphere_points,
+                neighbor_offsets,
+                neighbor_indices,
+                buried,
+            )
+        except numba.core.errors.NumbaError:
+            _NUMBA_SASA_PARALLEL_KERNEL = None
+            return None
+        finally:
+            numba.set_num_threads(previous_threads)
 
 def atom_sasa_spatial(
     coordinates,
