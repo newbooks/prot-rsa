@@ -57,15 +57,16 @@ The table below compares protein RSA calculation times under each
 optimization. Execution times are reported in seconds; lower values are
 better.
 
-| Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE vs `*.sas.baseline` (Å²) |
+| Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE vs `*.sas.baseline` (small / medium / large, Å²) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Naive | 1 | 960 | 551 | 2185 | 11634 | 0 |
-| cKDTree | 1 | 960 | 18 | 37 | 84 | 0 |
-| Vectorized mask | 1 | 960 | 0.61 | 1.29 | 2.82 | 0 |
-| Occlusion-ordered neighbors | 1 | 960 | 0.32 | 0.63 | 1.62 | 0 |
-| Cache | 1 | 960 | 0.28 | 0.56 | 1.45 | 0 |
+| Naive | 1 | 960 | 551 | 2185 | 11634 | 0.000 / 0.000 / 0.000 |
+| cKDTree | 1 | 960 | 19.490 | 40.644 | 86.590 | 0.000 / 0.000 / 0.000 |
+| Vectorized mask | 1 | 960 | 0.609 | 1.285 | 2.820 | 0.000 / 0.000 / 0.000 |
+| Occlusion-ordered neighbors | 1 | 960 | 0.319 | 0.630 | 1.620 | 0.000 / 0.000 / 0.000 |
+| Cache | 1 | 960 | 0.276 | 0.536 | 1.393 | 0.000 / 0.000 / 0.000 |
+| Numba CPU | 1 | 960 | 0.078 | 0.132 | 0.283 | 0.000 / 0.000 / 0.000 |
 
-Benchmark structures: **small** — 1LYZ (129 residues); **medium** — 1CA2
+Benchmark structures are **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
 of unique residues represented by `ATOM` records; waters, ions, and other
 `HETATM` records are excluded.
@@ -99,6 +100,36 @@ kernel using identical CSR neighbors and five warmed-up calls. Median kernel
 times were 0.316585 s versus 0.282086 s for 1LYZ (1.12x), 0.612894 s versus
 0.549928 s for 1CA2 (1.11x), and 1.580235 s versus 1.412985 s for 1UOR
 (1.12x). Cached results were bitwise identical to the uncached kernel.
+
+The Numba CPU backend was benchmarked through `atom_sasa_spatial(...,
+backend="cpu")` on the same canonical structures. Numba compilation was
+performed by one untimed warm-up before five measured calls; timings below are
+the medians of those calls. Results were compared with the saved
+`*.atom.sas.baseline` files. The precise MAEs were 1.38605884e-7, 1.19507407e-7,
+and 1.54129259e-7 Å² for 1LYZ, 1CA2, and 1UOR, respectively; maximum absolute
+errors were below 5.0e-7 Å² in all three cases. The Numba row reports total
+`atom_sasa_spatial()` time, including validation, CSR construction, burial-mask
+construction, and kernel execution.
+
+The complete-burial mask was benchmarked with the cached kernel using 960
+sphere points, one warm-up, and five measured calls. Dense synthetic cases
+contained one large enclosing sphere and small targets; sparse cases used
+separated unit-radius atoms. Masked and unmasked outputs were bitwise
+identical in every case.
+
+| Workload | Atoms | Buried | Directed neighbors | Unmasked (s) | Masked (s) | Speedup |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Dense synthetic | 27 | 26 | 54 | 0.001185 | 0.000443 | 2.67x |
+| Dense synthetic | 64 | 63 | 138 | 0.002850 | 0.001030 | 2.77x |
+| Dense synthetic | 125 | 124 | 316 | 0.005660 | 0.002006 | 2.82x |
+| Sparse synthetic | 27 | 0 | 0 | 0.000021 | 0.000022 | 0.95x |
+| Sparse synthetic | 125 | 0 | 0 | 0.000086 | 0.000092 | 0.93x |
+
+The synthetic coordinates were generated deterministically with NumPy seed
+20260918. Timings were collected on Linux with NumPy 2.4.4 and SciPy 1.18.0;
+sub-10-ms measurements are reported as absolute values because timer noise is
+material at that scale. The mask removes the intended sampling work for dense
+burial while adding negligible overhead to sparse inputs.
 
 The production-dispatch crossover was also evaluated with deterministic dense
 synthetic grids using the same 960 sphere points. Coordinates were generated

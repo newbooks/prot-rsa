@@ -355,9 +355,15 @@ Before the stable release:
 2. Define constants, exceptions, result types, and validation.
 3. Implement deterministic sphere generation.
 4. Implement and test the reference algorithm.
-5. Implement and test KD-tree and Numba CPU acceleration.
-6. Add exact neighbor filtering, burial detection, neighbor ordering, and residue aggregation.
-7. Benchmark kernel layouts, then implement and test four-worker multiprocessing and Numba threading without oversubscription.
+5. Implement and test KD-tree and Numba CPU acceleration according to
+   [`specs/atom-sasa-numba.md`](specs/atom-sasa-numba.md).
+6. Add exact neighbor filtering, complete-burial masking, neighbor ordering,
+   and residue aggregation according to
+   [`specs/atom-sasa-burial.md`](specs/atom-sasa-burial.md).
+7. Implement and test the Numba kernel according to
+   [`specs/atom-sasa-numba.md`](specs/atom-sasa-numba.md), then benchmark
+   kernel layouts and defer four-worker multiprocessing/thread coordination to
+   its own phase without oversubscription.
 8. Implement and test structure parsing and the CLI.
 9. Select, implement, and validate an optional GPU backend.
 10. Run independent scientific validation and benchmarks.
