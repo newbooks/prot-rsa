@@ -997,12 +997,46 @@ def _build_spatial_neighbors(
     return offsets, indices
 
 
+def _build_buried_mask(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+    neighbor_offsets: np.ndarray,
+    neighbor_indices: np.ndarray,
+) -> np.ndarray:
+    """Return flags for atoms completely enclosed by a CSR neighbor."""
+
+    atom_count = atom_coordinates.shape[0]
+    buried = np.zeros(atom_count, dtype=np.bool_)
+    if atom_count < 2 or neighbor_indices.size == 0:
+        return buried
+
+    for atom_index in range(atom_count):
+        target_radius = expanded_radii[atom_index]
+        target_center = atom_coordinates[atom_index]
+        start = int(neighbor_offsets[atom_index])
+        stop = int(neighbor_offsets[atom_index + 1])
+        for position in range(start, stop):
+            neighbor_index = int(neighbor_indices[position])
+            displacement = target_center - atom_coordinates[neighbor_index]
+            squared_distance = (
+                displacement[0] * displacement[0]
+                + displacement[1] * displacement[1]
+                + displacement[2] * displacement[2]
+            )
+            center_distance = math.sqrt(squared_distance)
+            if center_distance + target_radius <= expanded_radii[neighbor_index]:
+                buried[atom_index] = True
+                break
+    return buried
+
+
 def _atom_sasa_from_neighbors(
     atom_coordinates: np.ndarray,
     expanded_radii: np.ndarray,
     sphere_points: np.ndarray,
     neighbor_offsets: np.ndarray,
     neighbor_indices: np.ndarray,
+    buried: np.ndarray | None = None,
 ) -> np.ndarray:
     """Calculate atom SASA from validated arrays and CSR neighbors."""
 
@@ -1028,6 +1062,9 @@ def _atom_sasa_from_neighbors(
         outside_neighbor = np.empty(point_count, dtype=np.bool_)
 
     for atom_index in range(atom_count):
+        if buried is not None and buried[atom_index]:
+            surface_areas[atom_index] = 0.0
+            continue
         neighbor_start = int(neighbor_offsets[atom_index])
         neighbor_stop = int(neighbor_offsets[atom_index + 1])
         target_radius = expanded_radii[atom_index]
@@ -1126,12 +1163,19 @@ def atom_sasa_spatial(
         atom_coordinates,
         expanded_radii,
     )
+    buried = _build_buried_mask(
+        atom_coordinates,
+        expanded_radii,
+        neighbor_offsets,
+        neighbor_indices,
+    )
     return _atom_sasa_from_neighbors(
         atom_coordinates,
         expanded_radii,
         points,
         neighbor_offsets,
         neighbor_indices,
+        buried,
     )
 
 

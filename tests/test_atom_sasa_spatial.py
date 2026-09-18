@@ -113,6 +113,65 @@ def test_tangent_expanded_spheres_are_neighbors() -> None:
     np.testing.assert_array_equal(indices, [1, 0])
 
 
+def test_buried_mask_marks_internal_tangency_only() -> None:
+    coordinates = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+            [6.0, 0.0, 0.0],
+            [20.0, 0.0, 0.0],
+        ]
+    )
+    expanded_radii = np.array([1.0, 3.0, 1.0, 1.0])
+    offsets, indices = protrsa._build_spatial_neighbors(
+        coordinates, expanded_radii
+    )
+
+    buried = protrsa._build_buried_mask(
+        coordinates, expanded_radii, offsets, indices
+    )
+
+    # Atom 0 is internally tangent to atom 1; atom 2 is only externally
+    # tangent to atom 1, and atom 3 has no neighbors.
+    np.testing.assert_array_equal(buried, [True, False, False, False])
+
+
+def test_burial_mask_preserves_spatial_result_and_skips_buried_atom() -> None:
+    coordinates = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0], [9.0, 0.0, 0.0]])
+    radii = np.array([3.0, 1.0, 2.0])
+    points = protrsa.generate_sphere_points(97)
+    atom_coordinates, atom_radii, probe_radius, normalized_points = (
+        protrsa._prepare_atom_sasa_inputs(
+            coordinates, radii, probe_size=0.0, sphere_points=points
+        )
+    )
+    expanded_radii = atom_radii + probe_radius
+    offsets, indices = protrsa._build_spatial_neighbors(
+        atom_coordinates, expanded_radii
+    )
+    buried = protrsa._build_buried_mask(
+        atom_coordinates, expanded_radii, offsets, indices
+    )
+    masked = protrsa._atom_sasa_from_neighbors(
+        atom_coordinates,
+        expanded_radii,
+        normalized_points,
+        offsets,
+        indices,
+        buried,
+    )
+    unmasked = protrsa._atom_sasa_from_neighbors(
+        atom_coordinates,
+        expanded_radii,
+        normalized_points,
+        offsets,
+        indices,
+    )
+
+    np.testing.assert_array_equal(masked, unmasked)
+    assert masked[1] == 0.0
+
+
 def test_second_probe_radius_is_included_in_neighbor_cutoff() -> None:
     coordinates = [[0.0, 0.0, 0.0], [4.0, 0.0, 0.0]]
     radii = [1.0, 1.0]
