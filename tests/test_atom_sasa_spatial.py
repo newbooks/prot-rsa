@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pytest
@@ -341,6 +342,74 @@ def test_backend_auto_and_cpu_agree_with_numpy_fallback() -> None:
 def test_spatial_rejects_unknown_backend() -> None:
     with pytest.raises(ValueError, match="backend must be 'auto' or 'cpu'"):
         protrsa.atom_sasa_spatial([[0.0, 0.0, 0.0]], [1.0], backend="invalid")
+
+
+def test_parallel_workers_restore_numba_thread_count() -> None:
+    numba = pytest.importorskip("numba")
+    coordinates = np.array([[0.0, 0.0, 0.0], [2.0, 0.3, 0.0]])
+    radii = np.array([1.5, 1.2])
+    original = numba.get_num_threads()
+    try:
+        protrsa.atom_sasa_spatial(
+            coordinates,
+            radii,
+            sphere_points=protrsa.generate_sphere_points(31),
+            workers=1,
+        )
+        assert numba.get_num_threads() == original
+    finally:
+        numba.set_num_threads(original)
+
+
+def test_concurrent_parallel_calls_restore_numba_thread_count() -> None:
+    numba = pytest.importorskip("numba")
+    coordinates = np.array([[0.0, 0.0, 0.0], [2.0, 0.3, 0.0]])
+    radii = np.array([1.5, 1.2])
+    points = protrsa.generate_sphere_points(31)
+    original = numba.get_num_threads()
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(
+                    protrsa.atom_sasa_spatial,
+                    coordinates,
+                    radii,
+                    sphere_points=points,
+                    workers=workers,
+                )
+                for workers in (1, 2)
+            ]
+            results = [future.result() for future in futures]
+        np.testing.assert_allclose(results[0], results[1], rtol=1e-14, atol=1e-12)
+        assert numba.get_num_threads() == original
+    finally:
+        numba.set_num_threads(original)
+
+
+def test_parallel_workers_require_positive_integer() -> None:
+    with pytest.raises(ValueError, match="workers must be a positive integer"):
+        protrsa.atom_sasa_spatial(
+            [[0.0, 0.0, 0.0]], [1.0], workers=0
+        )
+
+
+def test_calculate_atom_sasa_validates_workers_even_for_empty_input() -> None:
+    with pytest.raises(TypeError, match="workers must be a positive integer"):
+        protrsa.calculate_atom_sasa([], workers=True)
+    with pytest.raises(ValueError, match="workers must be a positive integer"):
+        protrsa.atom_sasa_spatial(
+            np.empty((0, 3)), np.empty(0), workers=0
+        )
+
+
+def test_empty_input_rejects_workers_above_numba_limit() -> None:
+    numba = pytest.importorskip("numba")
+    with pytest.raises(ValueError, match="workers must not exceed Numba's thread limit"):
+        protrsa.atom_sasa_spatial(
+            np.empty((0, 3)),
+            np.empty(0),
+            workers=numba.config.NUMBA_NUM_THREADS + 1,
+        )
 
 
 def test_spatial_translation_permutation_and_repeat_invariants() -> None:

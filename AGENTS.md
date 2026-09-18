@@ -15,12 +15,6 @@ These instructions apply to the entire repository.
 - Before finishing the task, run the focused tests for the changed behavior and, when practical, the full test suite.
 - Do not report the work as complete unless the tests pass. If a test cannot be run or an existing failure remains, report it clearly with the reason and scope.
 
-## Compute resources
-
-- Use multiprocessing whenever the workload can be safely and meaningfully parallelized, with a default of 4 worker processes. Allow callers and command-line users to override the worker count.
-- Use GPU acceleration when the required operation and available dependencies support it. Detect support safely and retain a correct CPU fallback for environments without a compatible GPU.
-- Keep results consistent across serial, multiprocessing, CPU, and GPU execution within the scientifically appropriate numerical tolerance.
-
 ## Issue resolution and scientific ambiguity
 
 - Resolve issues discovered while performing the requested work when they are clearly related, reproducible, and within scope.

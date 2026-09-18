@@ -129,7 +129,7 @@ warm-ups must exclude that cost.
 
 `backend="auto"` and `backend="cpu"` both select the Numba CPU
 implementation and fall back to the existing NumPy CPU kernel when Numba is
-unavailable. No accelerator runtime is initialized or probed.
+unavailable. No external runtime is initialized or probed.
 
 If Numba is unavailable, disabled by an unsupported runtime, or compilation
 fails, the call must use the existing NumPy kernel. Automatic fallback must

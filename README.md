@@ -64,7 +64,7 @@ better.
 | Vectorized mask | 1 | 960 | 0.609 | 1.285 | 2.820 | 0.000 / 0.000 / 0.000 |
 | Occlusion-ordered neighbors | 1 | 960 | 0.319 | 0.630 | 1.620 | 0.000 / 0.000 / 0.000 |
 | Cache | 1 | 960 | 0.276 | 0.536 | 1.393 | 0.000 / 0.000 / 0.000 |
-| Numba CPU | 1 | 960 | 0.078 | 0.132 | 0.283 | 0.000 / 0.000 / 0.000 |
+| Numba CPU (1 thread) | 1 | 960 | 0.098 | 0.135 | 0.294 | 0.000 / 0.000 / 0.000 |
 
 Benchmark structures are **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
@@ -109,13 +109,27 @@ the medians of those calls. Results were compared with the saved
 and 1.54129259e-7 Å² for 1LYZ, 1CA2, and 1UOR, respectively; maximum absolute
 errors were below 5.0e-7 Å² in all three cases. The Numba row reports total
 `atom_sasa_spatial()` time, including validation, CSR construction, burial-mask
-construction, and kernel execution.
+construction, and kernel execution. With the default one thread, the measured
+medians were approximately 0.098 s, 0.135 s, and 0.294 s, respectively.
+Four-thread execution remains available through `workers=4` for workloads
+where it provides a measured benefit.
 
 The complete-burial mask was benchmarked with the cached kernel using 960
 sphere points, one warm-up, and five measured calls. Dense synthetic cases
 contained one large enclosing sphere and small targets; sparse cases used
 separated unit-radius atoms. Masked and unmasked outputs were bitwise
 identical in every case.
+
+The burial-mask construction itself was also compared with its Python fallback
+using four Numba threads, after one compilation warm-up and five measured
+calls. The Numba mask was bitwise identical to the fallback and reduced mask
+construction time by more than 700x on the canonical structures.
+
+| Structure | Python mask (s) | Numba mask, 4 threads (s) | Speedup |
+| --- | ---: | ---: | ---: |
+| 1LYZ | 0.064351 | 0.000060 | 1074x |
+| 1CA2 | 0.088435 | 0.000118 | 748x |
+| 1UOR | 0.189883 | 0.000234 | 813x |
 
 | Workload | Atoms | Buried | Directed neighbors | Unmasked (s) | Masked (s) | Speedup |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |

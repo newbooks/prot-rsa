@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import threading
 import time
 from types import MappingProxyType
 from typing import Iterable, Sequence
@@ -23,7 +24,7 @@ from scipy.spatial import cKDTree
 DEFAULT_MODE = "ALL"
 DEFAULT_PROBE_SIZE = 1.40
 DEFAULT_SPHERE_POINTS = 960
-DEFAULT_WORKERS = 4
+DEFAULT_WORKERS = 1
 DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
 DEFAULT_BACKEND = "auto"
@@ -43,6 +44,26 @@ ATOM_SASA_COLUMNS = (
     "sasa_A2",
 )
 ATOM_IDENTITY_COLUMNS = ATOM_SASA_COLUMNS[:-2]
+
+
+def _validate_workers(workers: int) -> int:
+    """Validate and normalize a positive Numba thread count."""
+
+    if isinstance(workers, (bool, np.bool_)) or not isinstance(workers, numbers.Integral):
+        raise TypeError("workers must be a positive integer")
+    workers = int(workers)
+    if workers < 1:
+        raise ValueError("workers must be a positive integer")
+    try:
+        import numba
+    except ImportError:
+        return workers
+    maximum_workers = int(numba.config.NUMBA_NUM_THREADS)
+    if workers > maximum_workers:
+        raise ValueError(
+            f"workers must not exceed Numba's thread limit ({maximum_workers})"
+        )
+    return workers
 
 PROTOR_RADII = MappingProxyType(
     {
@@ -618,8 +639,11 @@ def calculate_atom_sasa(
     probe_size: float = DEFAULT_PROBE_SIZE,
     sphere_points: np.ndarray | None = None,
     backend: str = DEFAULT_BACKEND,
+    workers: int = DEFAULT_WORKERS,
 ) -> np.ndarray:
     """Calculate absolute SASA for normalized atoms with spatial pruning."""
+
+    workers = _validate_workers(workers)
 
     coordinates = np.asarray(
         [(atom.source.x, atom.source.y, atom.source.z) for atom in atoms],
@@ -632,6 +656,8 @@ def calculate_atom_sasa(
     }
     if backend != DEFAULT_BACKEND:
         spatial_kwargs["backend"] = backend
+    if workers != DEFAULT_WORKERS:
+        spatial_kwargs["workers"] = workers
     return atom_sasa_spatial(coordinates, radii, **spatial_kwargs)
 
 
@@ -1000,7 +1026,7 @@ def _build_spatial_neighbors(
     return offsets, indices
 
 
-def _build_buried_mask(
+def _build_buried_mask_python(
     atom_coordinates: np.ndarray,
     expanded_radii: np.ndarray,
     neighbor_offsets: np.ndarray,
@@ -1031,6 +1057,109 @@ def _build_buried_mask(
                 buried[atom_index] = True
                 break
     return buried
+
+
+_NUMBA_BURIED_MASK_KERNEL = None
+_NUMBA_THREAD_LOCK = threading.Lock()
+
+
+def _numba_buried_mask_kernel_impl(
+    atom_coordinates,
+    expanded_radii,
+    neighbor_offsets,
+    neighbor_indices,
+):
+    """Numba-compatible parallel complete-burial detection."""
+
+    atom_count = atom_coordinates.shape[0]
+    buried = np.zeros(atom_count, dtype=np.bool_)
+    for atom_index in _NUMBA_PRANGE(atom_count):
+        target_radius = expanded_radii[atom_index]
+        target_x = atom_coordinates[atom_index, 0]
+        target_y = atom_coordinates[atom_index, 1]
+        target_z = atom_coordinates[atom_index, 2]
+        start = neighbor_offsets[atom_index]
+        stop = neighbor_offsets[atom_index + 1]
+        for position in range(start, stop):
+            neighbor_index = neighbor_indices[position]
+            dx = target_x - atom_coordinates[neighbor_index, 0]
+            dy = target_y - atom_coordinates[neighbor_index, 1]
+            dz = target_z - atom_coordinates[neighbor_index, 2]
+            distance = math.sqrt(dx * dx + dy * dy + dz * dz)
+            if distance + target_radius <= expanded_radii[neighbor_index]:
+                buried[atom_index] = True
+                break
+    return buried
+
+
+def _numba_buried_mask_or_none(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+    neighbor_offsets: np.ndarray,
+    neighbor_indices: np.ndarray,
+    workers: int,
+) -> np.ndarray | None:
+    """Run the parallel Numba burial mask, or return ``None`` on fallback."""
+
+    global _NUMBA_BURIED_MASK_KERNEL, _NUMBA_PRANGE
+    try:
+        import numba
+    except ImportError:
+        return None
+    if isinstance(workers, (bool, np.bool_)) or not isinstance(workers, numbers.Integral):
+        raise TypeError("workers must be a positive integer")
+    workers = int(workers)
+    if workers < 1:
+        raise ValueError("workers must be a positive integer")
+    with _NUMBA_THREAD_LOCK:
+        previous_threads = numba.get_num_threads()
+        try:
+            numba.set_num_threads(workers)
+            if _NUMBA_BURIED_MASK_KERNEL is None:
+                _NUMBA_PRANGE = numba.prange
+                _NUMBA_BURIED_MASK_KERNEL = numba.njit(
+                    parallel=True, cache=True
+                )(_numba_buried_mask_kernel_impl)
+            return _NUMBA_BURIED_MASK_KERNEL(
+                atom_coordinates,
+                expanded_radii,
+                neighbor_offsets,
+                neighbor_indices,
+            )
+        except numba.core.errors.NumbaError:
+            _NUMBA_BURIED_MASK_KERNEL = None
+            return None
+        finally:
+            numba.set_num_threads(previous_threads)
+
+
+def _build_buried_mask(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+    neighbor_offsets: np.ndarray,
+    neighbor_indices: np.ndarray,
+    workers: int = DEFAULT_WORKERS,
+) -> np.ndarray:
+    """Return flags for atoms completely enclosed by a CSR neighbor."""
+
+    atom_count = atom_coordinates.shape[0]
+    if atom_count < 2 or neighbor_indices.size == 0:
+        return np.zeros(atom_count, dtype=np.bool_)
+    mask = _numba_buried_mask_or_none(
+        atom_coordinates,
+        expanded_radii,
+        neighbor_offsets,
+        neighbor_indices,
+        workers,
+    )
+    if mask is not None:
+        return mask
+    return _build_buried_mask_python(
+        atom_coordinates,
+        expanded_radii,
+        neighbor_offsets,
+        neighbor_indices,
+    )
 
 
 def _atom_sasa_from_neighbors(
@@ -1139,6 +1268,8 @@ def _atom_sasa_from_neighbors(
 
 
 _NUMBA_SASA_KERNEL = None
+_NUMBA_SASA_PARALLEL_KERNEL = None
+_NUMBA_PRANGE = range
 
 
 def _numba_sasa_kernel_impl(
@@ -1212,7 +1343,6 @@ def _numba_sasa_or_none(
         import numba
     except ImportError:
         return None
-
     if _NUMBA_SASA_KERNEL is None:
         _NUMBA_SASA_KERNEL = numba.njit(cache=True)(_numba_sasa_kernel_impl)
     try:
@@ -1229,6 +1359,86 @@ def _numba_sasa_or_none(
         return None
 
 
+def _numba_sasa_parallel_kernel_impl(
+    atom_coordinates,
+    expanded_radii,
+    sphere_points,
+    neighbor_offsets,
+    neighbor_indices,
+    buried,
+):
+    """Numba-compatible parallel point-occlusion implementation."""
+
+    atom_count = atom_coordinates.shape[0]
+    point_count = sphere_points.shape[0]
+    surface_areas = np.empty(atom_count, dtype=np.float64)
+    for atom_index in _NUMBA_PRANGE(atom_count):
+        if buried[atom_index]:
+            surface_areas[atom_index] = 0.0
+            continue
+        target_radius = expanded_radii[atom_index]
+        exposed_count = 0
+        neighbor_start = neighbor_offsets[atom_index]
+        neighbor_stop = neighbor_offsets[atom_index + 1]
+        for point_index in range(point_count):
+            sample_x = atom_coordinates[atom_index, 0] + target_radius * sphere_points[point_index, 0]
+            sample_y = atom_coordinates[atom_index, 1] + target_radius * sphere_points[point_index, 1]
+            sample_z = atom_coordinates[atom_index, 2] + target_radius * sphere_points[point_index, 2]
+            exposed = True
+            for neighbor_position in range(neighbor_start, neighbor_stop):
+                neighbor_index = neighbor_indices[neighbor_position]
+                dx = sample_x - atom_coordinates[neighbor_index, 0]
+                dy = sample_y - atom_coordinates[neighbor_index, 1]
+                dz = sample_z - atom_coordinates[neighbor_index, 2]
+                if dx * dx + dy * dy + dz * dz <= expanded_radii[neighbor_index] ** 2:
+                    exposed = False
+                    break
+            if exposed:
+                exposed_count += 1
+        surface_areas[atom_index] = 4.0 * math.pi * target_radius**2 * exposed_count / point_count
+    return surface_areas
+
+
+def _numba_sasa_parallel_or_none(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+    sphere_points: np.ndarray,
+    neighbor_offsets: np.ndarray,
+    neighbor_indices: np.ndarray,
+    buried: np.ndarray,
+    workers: int,
+) -> np.ndarray | None:
+    """Run the parallel Numba kernel with temporary thread control."""
+
+    global _NUMBA_SASA_PARALLEL_KERNEL, _NUMBA_PRANGE
+    try:
+        import numba
+    except ImportError:
+        return None
+    workers = _validate_workers(workers)
+    with _NUMBA_THREAD_LOCK:
+        previous_threads = numba.get_num_threads()
+        try:
+            numba.set_num_threads(workers)
+            if _NUMBA_SASA_PARALLEL_KERNEL is None:
+                _NUMBA_PRANGE = numba.prange
+                _NUMBA_SASA_PARALLEL_KERNEL = numba.njit(
+                    parallel=True, cache=True
+                )(_numba_sasa_parallel_kernel_impl)
+            return _NUMBA_SASA_PARALLEL_KERNEL(
+                atom_coordinates,
+                expanded_radii,
+                sphere_points,
+                neighbor_offsets,
+                neighbor_indices,
+                buried,
+            )
+        except numba.core.errors.NumbaError:
+            _NUMBA_SASA_PARALLEL_KERNEL = None
+            return None
+        finally:
+            numba.set_num_threads(previous_threads)
+
 def atom_sasa_spatial(
     coordinates,
     radii,
@@ -1236,9 +1446,11 @@ def atom_sasa_spatial(
     probe_size: float = DEFAULT_PROBE_SIZE,
     sphere_points: np.ndarray | None = None,
     backend: str = DEFAULT_BACKEND,
+    workers: int = DEFAULT_WORKERS,
 ) -> np.ndarray:
     """Return atom SASA using KD-tree-pruned neighbor lists."""
 
+    workers = _validate_workers(workers)
     if backend not in {"auto", "cpu"}:
         raise ValueError("backend must be 'auto' or 'cpu'")
 
@@ -1266,7 +1478,19 @@ def atom_sasa_spatial(
         expanded_radii,
         neighbor_offsets,
         neighbor_indices,
+        workers,
     )
+    numba_result = _numba_sasa_parallel_or_none(
+        atom_coordinates,
+        expanded_radii,
+        points,
+        neighbor_offsets,
+        neighbor_indices,
+        buried,
+        workers,
+    )
+    if numba_result is not None:
+        return numba_result
     numba_result = _numba_sasa_or_none(
         atom_coordinates,
         expanded_radii,
@@ -1385,7 +1609,7 @@ def build_parser(*, prog: str | None = None) -> argparse.ArgumentParser:
         type=_positive_int,
         default=DEFAULT_WORKERS,
         metavar="INTEGER",
-        help=f"number of worker processes (default: {DEFAULT_WORKERS})",
+        help=f"number of Numba CPU threads (default: {DEFAULT_WORKERS})",
     )
     parser.add_argument(
         "--preserve-het",
@@ -1451,7 +1675,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             use_h=arguments.use_h,
             preserve_het=arguments.preserve_het,
         )
-        atom_sasa = calculate_atom_sasa(atoms, probe_size=arguments.prob_size)
+        atom_sasa = calculate_atom_sasa(
+            atoms,
+            probe_size=arguments.prob_size,
+            workers=arguments.workers,
+        )
     except (StructureReadError, ValueError) as error:
         parser.error(str(error))
     try:

@@ -28,3 +28,6 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
 - [`atom-sasa-numba.md`](atom-sasa-numba.md): the planned lazy-compiled
   Numba CPU kernel, fallback behavior, threading constraints, and validation
   gates.
+- [`atom-sasa-numba-parallel.md`](atom-sasa-numba-parallel.md): the planned
+  `prange` CPU kernel, thread-state management, equivalence tests, and
+  benchmark gate.
