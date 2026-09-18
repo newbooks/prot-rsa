@@ -987,6 +987,83 @@ def _build_spatial_neighbors(
     return offsets, indices
 
 
+def _atom_sasa_from_neighbors(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+    sphere_points: np.ndarray,
+    neighbor_offsets: np.ndarray,
+    neighbor_indices: np.ndarray,
+) -> np.ndarray:
+    """Calculate atom SASA from validated arrays and CSR neighbors."""
+
+    atom_count = atom_coordinates.shape[0]
+    if atom_count == 0:
+        return np.empty(0, dtype=np.float64)
+
+    point_count = sphere_points.shape[0]
+    surface_areas = np.empty(atom_count, dtype=np.float64)
+    if neighbor_indices.size:
+        sample_points = np.empty_like(sphere_points)
+        displacements = np.empty_like(sphere_points)
+        squared_distances = np.empty(point_count, dtype=np.float64)
+        exposed = np.empty(point_count, dtype=np.bool_)
+        outside_neighbor = np.empty(point_count, dtype=np.bool_)
+
+    for atom_index in range(atom_count):
+        neighbor_start = int(neighbor_offsets[atom_index])
+        neighbor_stop = int(neighbor_offsets[atom_index + 1])
+        if neighbor_start == neighbor_stop:
+            exposed_count = point_count
+        else:
+            np.multiply(
+                sphere_points,
+                expanded_radii[atom_index],
+                out=sample_points,
+            )
+            np.add(sample_points, atom_coordinates[atom_index], out=sample_points)
+            exposed.fill(True)
+            for neighbor_position in range(neighbor_start, neighbor_stop):
+                other_index = neighbor_indices[neighbor_position]
+                np.subtract(
+                    sample_points,
+                    atom_coordinates[other_index],
+                    out=displacements,
+                )
+                np.multiply(
+                    displacements,
+                    displacements,
+                    out=displacements,
+                )
+                np.add(
+                    displacements[:, 0],
+                    displacements[:, 1],
+                    out=squared_distances,
+                )
+                np.add(
+                    squared_distances,
+                    displacements[:, 2],
+                    out=squared_distances,
+                )
+                np.greater(
+                    squared_distances,
+                    expanded_radii[other_index] ** 2,
+                    out=outside_neighbor,
+                )
+                np.logical_and(exposed, outside_neighbor, out=exposed)
+                if not np.any(exposed):
+                    break
+            exposed_count = int(np.count_nonzero(exposed))
+        surface_areas[atom_index] = (
+            4.0
+            * math.pi
+            * expanded_radii[atom_index] ** 2
+            * exposed_count
+            / point_count
+        )
+
+    return surface_areas
+
+
 def atom_sasa_spatial(
     coordinates,
     radii,
@@ -1015,39 +1092,13 @@ def atom_sasa_spatial(
         atom_coordinates,
         expanded_radii,
     )
-    point_count = points.shape[0]
-    surface_areas = np.empty(atom_count, dtype=np.float64)
-    for atom_index in range(atom_count):
-        neighbor_start = neighbor_offsets[atom_index]
-        neighbor_stop = neighbor_offsets[atom_index + 1]
-        if neighbor_start == neighbor_stop:
-            exposed_count = point_count
-        else:
-            exposed_count = 0
-            for unit_point in points:
-                sample_point = (
-                    atom_coordinates[atom_index]
-                    + expanded_radii[atom_index] * unit_point
-                )
-                blocked = False
-                for neighbor_position in range(neighbor_start, neighbor_stop):
-                    other_index = neighbor_indices[neighbor_position]
-                    displacement = sample_point - atom_coordinates[other_index]
-                    squared_distance = float(np.dot(displacement, displacement))
-                    if squared_distance <= expanded_radii[other_index] ** 2:
-                        blocked = True
-                        break
-                if not blocked:
-                    exposed_count += 1
-        surface_areas[atom_index] = (
-            4.0
-            * math.pi
-            * expanded_radii[atom_index] ** 2
-            * exposed_count
-            / point_count
-        )
-
-    return surface_areas
+    return _atom_sasa_from_neighbors(
+        atom_coordinates,
+        expanded_radii,
+        points,
+        neighbor_offsets,
+        neighbor_indices,
+    )
 
 
 def _strip_structure_suffix(input_path: Path) -> Path:

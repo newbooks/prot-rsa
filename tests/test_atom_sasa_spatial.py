@@ -83,6 +83,82 @@ def test_second_probe_radius_is_included_in_neighbor_cutoff() -> None:
     assert np.all(result < 4.0 * math.pi * 2.4**2)
 
 
+def test_vectorized_mask_accumulates_disjoint_neighbor_occlusion() -> None:
+    coordinates = [[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [-2.0, 0.0, 0.0]]
+    radii = [1.0, 1.0, 1.0]
+    points = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+        ]
+    )
+
+    result = protrsa.atom_sasa_spatial(
+        coordinates,
+        radii,
+        probe_size=0.0,
+        sphere_points=points,
+    )
+    reference = protrsa.atom_sasa_reference(
+        coordinates,
+        radii,
+        probe_size=0.0,
+        sphere_points=points,
+    )
+
+    np.testing.assert_array_equal(result, reference)
+    assert result[0] == pytest.approx(2.0 * math.pi)
+
+
+def test_vectorized_mask_handles_first_neighbor_complete_block() -> None:
+    coordinates = [[0.0, 0.0, 0.0], [0.25, 0.0, 0.0], [0.5, 0.0, 0.0]]
+    radii = [1.0, 3.0, 1.0]
+    points = protrsa.generate_sphere_points(17)
+
+    result = protrsa.atom_sasa_spatial(
+        coordinates,
+        radii,
+        probe_size=0.0,
+        sphere_points=points,
+    )
+    reference = protrsa.atom_sasa_reference(
+        coordinates,
+        radii,
+        probe_size=0.0,
+        sphere_points=points,
+    )
+
+    np.testing.assert_array_equal(result, reference)
+    assert result[0] == 0.0
+
+
+def test_vectorized_mask_preserves_dot_boundary_rounding() -> None:
+    coordinates = [
+        [0.0, 0.0, 0.0],
+        [3.1675033383994773, 6.2549486055980381, 3.0807866885653379],
+    ]
+    radii = [1.0, 7.301623066215285]
+    points = np.array([[1.0, 0.0, 0.0]])
+
+    result = protrsa.atom_sasa_spatial(
+        coordinates,
+        radii,
+        probe_size=0.0,
+        sphere_points=points,
+    )
+    reference = protrsa.atom_sasa_reference(
+        coordinates,
+        radii,
+        probe_size=0.0,
+        sphere_points=points,
+    )
+
+    np.testing.assert_array_equal(result, reference)
+    assert result[0] == 0.0
+
+
 @pytest.mark.parametrize("atom_count", [0, 1, 2, 8, 24])
 @pytest.mark.parametrize("probe_size", [0.0, 1.4, 2.25])
 def test_spatial_is_bitwise_equal_to_reference_for_randomized_inputs(

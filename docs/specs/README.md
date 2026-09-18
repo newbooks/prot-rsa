@@ -15,3 +15,6 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
   Shrake–Rupley reference calculation of absolute per-atom SASA.
 - [`atom-sasa-spatial.md`](atom-sasa-spatial.md): conservative `cKDTree`
   neighbor pruning for the first optimized atom-SASA production path.
+- [`atom-sasa-vectorized-mask.md`](atom-sasa-vectorized-mask.md): bounded
+  NumPy exposed-point masks over CSR neighbors without blocking a later Numba
+  kernel.
