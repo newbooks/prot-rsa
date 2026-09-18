@@ -64,6 +64,7 @@ better.
 | Vectorized mask | 1 | 960 | 0.609 | 1.285 | 2.820 | 0.000 / 0.000 / 0.000 |
 | Occlusion-ordered neighbors | 1 | 960 | 0.319 | 0.630 | 1.620 | 0.000 / 0.000 / 0.000 |
 | Cache | 1 | 960 | 0.276 | 0.536 | 1.393 | 0.000 / 0.000 / 0.000 |
+| Numba CPU | 1 | 960 | 0.078 | 0.132 | 0.283 | 0.000 / 0.000 / 0.000 |
 
 Benchmark structures are **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
@@ -98,7 +99,17 @@ The cache optimization was compared with the uncached occlusion-ordered
 kernel using identical CSR neighbors and five warmed-up calls. Median kernel
 times were 0.316585 s versus 0.282086 s for 1LYZ (1.12x), 0.612894 s versus
 0.549928 s for 1CA2 (1.11x), and 1.580235 s versus 1.412985 s for 1UOR
- (1.12x). Cached results were bitwise identical to the uncached kernel.
+(1.12x). Cached results were bitwise identical to the uncached kernel.
+
+The Numba CPU backend was benchmarked through `atom_sasa_spatial(...,
+backend="cpu")` on the same canonical structures. Numba compilation was
+performed by one untimed warm-up before five measured calls; timings below are
+the medians of those calls. Results were compared with the saved
+`*.atom.sas.baseline` files. The precise MAEs were 1.38605884e-7, 1.19507407e-7,
+and 1.54129259e-7 Å² for 1LYZ, 1CA2, and 1UOR, respectively; maximum absolute
+errors were below 5.0e-7 Å² in all three cases. The Numba row reports total
+`atom_sasa_spatial()` time, including validation, CSR construction, burial-mask
+construction, and kernel execution.
 
 The complete-burial mask was benchmarked with the cached kernel using 960
 sphere points, one warm-up, and five measured calls. Dense synthetic cases

@@ -26,6 +26,7 @@ DEFAULT_SPHERE_POINTS = 960
 DEFAULT_WORKERS = 4
 DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
+DEFAULT_BACKEND = "auto"
 MODES = ("ALL", "SIDE", "KEY")
 SUPPORTED_INPUT_SUFFIXES = (".pdb", ".cif", ".pdb.gz", ".cif.gz")
 ATOM_SASA_COLUMNS = (
@@ -616,6 +617,7 @@ def calculate_atom_sasa(
     *,
     probe_size: float = DEFAULT_PROBE_SIZE,
     sphere_points: np.ndarray | None = None,
+    backend: str = DEFAULT_BACKEND,
 ) -> np.ndarray:
     """Calculate absolute SASA for normalized atoms with spatial pruning."""
 
@@ -624,12 +626,13 @@ def calculate_atom_sasa(
         dtype=np.float64,
     ).reshape((-1, 3))
     radii = np.asarray([atom.radius for atom in atoms], dtype=np.float64)
-    return atom_sasa_spatial(
-        coordinates,
-        radii,
-        probe_size=probe_size,
-        sphere_points=sphere_points,
-    )
+    spatial_kwargs = {
+        "probe_size": probe_size,
+        "sphere_points": sphere_points,
+    }
+    if backend != DEFAULT_BACKEND:
+        spatial_kwargs["backend"] = backend
+    return atom_sasa_spatial(coordinates, radii, **spatial_kwargs)
 
 
 def _write_new_text(output_path: str | Path, text: str) -> None:
@@ -1135,14 +1138,109 @@ def _atom_sasa_from_neighbors(
     return surface_areas
 
 
+_NUMBA_SASA_KERNEL = None
+
+
+def _numba_sasa_kernel_impl(
+    atom_coordinates,
+    expanded_radii,
+    sphere_points,
+    neighbor_offsets,
+    neighbor_indices,
+    buried,
+):
+    """Numba-compatible scalar point-occlusion implementation."""
+
+    atom_count = atom_coordinates.shape[0]
+    point_count = sphere_points.shape[0]
+    surface_areas = np.empty(atom_count, dtype=np.float64)
+    for atom_index in range(atom_count):
+        if buried[atom_index]:
+            surface_areas[atom_index] = 0.0
+            continue
+        target_radius = expanded_radii[atom_index]
+        exposed_count = 0
+        neighbor_start = neighbor_offsets[atom_index]
+        neighbor_stop = neighbor_offsets[atom_index + 1]
+        for point_index in range(point_count):
+            sample_x = (
+                atom_coordinates[atom_index, 0]
+                + target_radius * sphere_points[point_index, 0]
+            )
+            sample_y = (
+                atom_coordinates[atom_index, 1]
+                + target_radius * sphere_points[point_index, 1]
+            )
+            sample_z = (
+                atom_coordinates[atom_index, 2]
+                + target_radius * sphere_points[point_index, 2]
+            )
+            exposed = True
+            for neighbor_position in range(neighbor_start, neighbor_stop):
+                neighbor_index = neighbor_indices[neighbor_position]
+                dx = sample_x - atom_coordinates[neighbor_index, 0]
+                dy = sample_y - atom_coordinates[neighbor_index, 1]
+                dz = sample_z - atom_coordinates[neighbor_index, 2]
+                squared_distance = dx * dx + dy * dy + dz * dz
+                if squared_distance <= expanded_radii[neighbor_index] ** 2:
+                    exposed = False
+                    break
+            if exposed:
+                exposed_count += 1
+        surface_areas[atom_index] = (
+            4.0
+            * math.pi
+            * target_radius**2
+            * exposed_count
+            / point_count
+        )
+    return surface_areas
+
+
+def _numba_sasa_or_none(
+    atom_coordinates: np.ndarray,
+    expanded_radii: np.ndarray,
+    sphere_points: np.ndarray,
+    neighbor_offsets: np.ndarray,
+    neighbor_indices: np.ndarray,
+    buried: np.ndarray,
+) -> np.ndarray | None:
+    """Run the lazily compiled Numba kernel, or return ``None`` on fallback."""
+
+    global _NUMBA_SASA_KERNEL
+    try:
+        import numba
+    except ImportError:
+        return None
+
+    if _NUMBA_SASA_KERNEL is None:
+        _NUMBA_SASA_KERNEL = numba.njit(cache=True)(_numba_sasa_kernel_impl)
+    try:
+        return _NUMBA_SASA_KERNEL(
+            atom_coordinates,
+            expanded_radii,
+            sphere_points,
+            neighbor_offsets,
+            neighbor_indices,
+            buried,
+        )
+    except numba.core.errors.NumbaError:
+        _NUMBA_SASA_KERNEL = None
+        return None
+
+
 def atom_sasa_spatial(
     coordinates,
     radii,
     *,
     probe_size: float = DEFAULT_PROBE_SIZE,
     sphere_points: np.ndarray | None = None,
+    backend: str = DEFAULT_BACKEND,
 ) -> np.ndarray:
     """Return atom SASA using KD-tree-pruned neighbor lists."""
+
+    if backend not in {"auto", "cpu"}:
+        raise ValueError("backend must be 'auto' or 'cpu'")
 
     atom_coordinates, atom_radii, probe_radius, points = _prepare_atom_sasa_inputs(
         coordinates,
@@ -1169,6 +1267,16 @@ def atom_sasa_spatial(
         neighbor_offsets,
         neighbor_indices,
     )
+    numba_result = _numba_sasa_or_none(
+        atom_coordinates,
+        expanded_radii,
+        points,
+        neighbor_offsets,
+        neighbor_indices,
+        buried,
+    )
+    if numba_result is not None:
+        return numba_result
     return _atom_sasa_from_neighbors(
         atom_coordinates,
         expanded_radii,

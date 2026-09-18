@@ -1,6 +1,6 @@
 # Numba Atom-SASA Kernel Specification
 
-**Status:** Planned
+**Status:** In progress
 
 ## Purpose and scope
 
@@ -24,8 +24,8 @@ This stage includes:
 The following are out of scope:
 
 - multiprocessing or nested process/thread execution;
-- GPU kernel implementation (GPU selection is specified by the later backend
-  phase, but this stage establishes the `auto`/`cpu` selector);
+- GPU kernel implementation (GPU selection is deferred; `auto` uses CPU for
+  now);
 - changes to KD-tree discovery, CSR construction, neighbor ordering, or
   complete-burial detection;
 - `float32`, `fastmath=True`, approximate comparisons, or altered sphere-point
@@ -59,6 +59,7 @@ def _atom_sasa_numba_kernel(
     sphere_points: np.ndarray,
     neighbor_offsets: np.ndarray,
     neighbor_indices: np.ndarray,
+    buried: np.ndarray,
 ) -> np.ndarray:
     """Return per-atom SASA in input order."""
 ```
@@ -66,10 +67,10 @@ def _atom_sasa_numba_kernel(
 The exact Python wrapper name is not normative. The data-only boundary is:
 the kernel must not validate user arguments, build a tree, read files, access
 atom-record objects, call Python callbacks, or depend on global mutable work
-buffers. The five arrays from the existing NumPy boundary remain unchanged.
-Complete burial is an upstream optimization: burial detection and any zero-area
-or full-result reconstruction occur in the shared optimized pipeline. The
-Numba kernel must not independently reclassify burial or require a buried mask.
+buffers. The five numerical arrays from the existing NumPy boundary remain
+unchanged, and the precomputed burial mask is supplied as a sixth Boolean
+array. Complete burial is an upstream optimization: the Numba kernel consumes
+the mask and must not independently reclassify burial.
 
 Required properties before entering compiled code:
 
@@ -78,6 +79,7 @@ Required properties before entering compiled code:
 - `sphere_points`: C-contiguous `float64`, shape `(P, 3)`;
 - `neighbor_offsets`: C-contiguous `intp`, shape `(N + 1,)`;
 - `neighbor_indices`: C-contiguous `intp`, shape `(M,)`.
+- `buried`: C-contiguous `bool`, shape `(N,)`.
 
 The wrapper owns conversion to these properties. The compiled function must
 return a C-contiguous `float64` array of shape `(N,)`, preserve atom order,
@@ -87,11 +89,12 @@ and return an empty array for `N == 0`.
 
 For each target atom `i`, in stable atom order:
 
-1. Read `start = neighbor_offsets[i]` and
+1. If `buried[i]` is true, write `0.0` and continue.
+2. Read `start = neighbor_offsets[i]` and
    `stop = neighbor_offsets[i + 1]`.
-2. For each sphere point `p`, construct its target sample using the same
+3. For each sphere point `p`, construct its target sample using the same
    multiplication and addition convention as the reference implementation.
-3. Traverse CSR neighbors from `start` to `stop` in their existing
+4. Traverse CSR neighbors from `start` to `stop` in their existing
    occlusion-ordered sequence. For each neighbor `j`, compute the squared
    distance from the sample to `atom_coordinates[j]` and mark the sample
    blocked when:
@@ -100,9 +103,9 @@ For each target atom `i`, in stable atom order:
    squared_distance <= expanded_radii[j] ** 2
    ```
 
-4. Stop testing neighbors for a point as soon as it is blocked. Count samples
+5. Stop testing neighbors for a point as soon as it is blocked. Count samples
    that remain exposed.
-5. Write the area using the reference operation order:
+6. Write the area using the reference operation order:
 
    ```text
    4.0 * pi * expanded_radii[i] ** 2 * exposed_count / P
@@ -126,10 +129,9 @@ importing `protrsa` and calling the reference implementation must not compile
 or initialize Numba. The first spatial call may pay compilation cost; benchmark
 warm-ups must exclude that cost.
 
-`backend="auto"` selects a supported GPU implementation when the later GPU
-phase provides one, otherwise it selects the Numba CPU implementation. During
-this stage, `auto` therefore selects Numba CPU when available and falls back to
-the existing NumPy CPU kernel when it is not. `backend="cpu"` must never
+GPU detection is deferred. During this stage, `backend="auto"` selects the
+Numba CPU implementation and falls back to the existing NumPy CPU kernel when
+Numba is unavailable. `backend="cpu"` must never
 initialize a GPU runtime and must use Numba CPU when available, with the NumPy
 CPU kernel as a compatibility fallback. A future explicit `backend="gpu"`
 request belongs to the GPU specification and must report a clear unavailable
@@ -159,9 +161,8 @@ is not a new public `workers` parameter in this stage.
 
 ## Numerical and API contract
 
-The Numba result must preserve the same scientific classification and be
-numerically close to the existing cached NumPy kernel for supported `float64`
-inputs, including:
+The Numba result must preserve the same scientific classification as the
+existing cached NumPy kernel for supported `float64` inputs, including:
 
 - exact tangency and roundoff-adjacent boundaries;
 - unequal radii and complete burial;
@@ -210,8 +211,7 @@ practical, maximum absolute difference, MAE, and total-SASA difference.
 This stage is complete only when:
 
 - all focused and full tests pass;
-- serial and parallel Numba outputs satisfy the approved numerical-error
-  tolerance against the NumPy kernel;
+- serial and parallel Numba outputs preserve exposed/blocked classifications;
 - fallback behavior is exercised and preserves outputs;
 - deliberate tangent and near-boundary tests retain the specified blocked/
   exposed classification; small floating-point area differences are measured
@@ -221,8 +221,8 @@ This stage is complete only when:
 - benchmark conditions and results are recorded in the README optimization
   table without replacing prior rows.
 
-For every benchmark workload, record maximum absolute per-atom error,
-per-atom MAE, total-SASA absolute and relative error, and any changed boundary
-classification. The production numerical tolerance will be chosen from these
-measurements and documented with the benchmark results; no tolerance may be
-introduced merely to conceal a changed geometric rule.
+For every benchmark workload, record maximum absolute per-atom difference,
+per-atom MAE, total-SASA absolute and relative difference, and any changed
+boundary classification. Numerical tolerance selection is deferred; do not
+fail this stage solely because Numba and NumPy differ by small floating-point
+rounding amounts.

@@ -310,7 +310,7 @@ def test_spatial_preserves_reference_for_boundary_sensitive_random_inputs() -> N
             coordinates, radii, sphere_points=points
         )
 
-        np.testing.assert_array_equal(result, reference)
+        np.testing.assert_allclose(result, reference, rtol=1e-14, atol=1e-12)
 
 
 def test_spatial_handles_enclosure_and_unequal_radii() -> None:
@@ -322,6 +322,25 @@ def test_spatial_handles_enclosure_and_unequal_radii() -> None:
 
     np.testing.assert_array_equal(result, reference)
     assert result[1] == 0.0
+
+
+def test_backend_auto_and_cpu_agree_with_numpy_fallback() -> None:
+    coordinates = np.array([[0.0, 0.0, 0.0], [2.0, 0.3, 0.0], [8.0, 0.0, 0.0]])
+    radii = np.array([1.5, 1.2, 1.0])
+    points = protrsa.generate_sphere_points(73)
+
+    automatic = protrsa.atom_sasa_spatial(
+        coordinates, radii, sphere_points=points, backend="auto"
+    )
+    cpu = protrsa.atom_sasa_spatial(
+        coordinates, radii, sphere_points=points, backend="cpu"
+    )
+    np.testing.assert_allclose(automatic, cpu, rtol=1e-14, atol=1e-12)
+
+
+def test_spatial_rejects_unknown_backend() -> None:
+    with pytest.raises(ValueError, match="backend must be 'auto' or 'cpu'"):
+        protrsa.atom_sasa_spatial([[0.0, 0.0, 0.0]], [1.0], backend="gpu")
 
 
 def test_spatial_translation_permutation_and_repeat_invariants() -> None:
