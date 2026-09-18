@@ -144,7 +144,7 @@ atom_sasa(
     *,
     probe_radius=1.4,
     sphere_points=None,
-    workers=4,
+    workers=1,
     backend="auto",
 ) -> np.ndarray
 
@@ -155,7 +155,7 @@ residue_sasa(
     *,
     probe_radius=1.4,
     sphere_points=None,
-    workers=4,
+    workers=1,
     backend="auto",
 ) -> dict
 
@@ -164,7 +164,7 @@ calculate_sasa(
     *,
     probe_radius=1.4,
     n_points=None,
-    workers=4,
+    workers=1,
     backend="auto",
 ):
     ...
