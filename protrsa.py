@@ -53,6 +53,15 @@ def _validate_workers(workers: int) -> int:
     workers = int(workers)
     if workers < 1:
         raise ValueError("workers must be a positive integer")
+    try:
+        import numba
+    except ImportError:
+        return workers
+    maximum_workers = int(numba.config.NUMBA_NUM_THREADS)
+    if workers > maximum_workers:
+        raise ValueError(
+            f"workers must not exceed Numba's thread limit ({maximum_workers})"
+        )
     return workers
 
 PROTOR_RADII = MappingProxyType(

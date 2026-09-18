@@ -376,6 +376,16 @@ def test_calculate_atom_sasa_validates_workers_even_for_empty_input() -> None:
         )
 
 
+def test_empty_input_rejects_workers_above_numba_limit() -> None:
+    numba = pytest.importorskip("numba")
+    with pytest.raises(ValueError, match="workers must not exceed Numba's thread limit"):
+        protrsa.atom_sasa_spatial(
+            np.empty((0, 3)),
+            np.empty(0),
+            workers=numba.config.NUMBA_NUM_THREADS + 1,
+        )
+
+
 def test_spatial_translation_permutation_and_repeat_invariants() -> None:
     coordinates = np.array(
         [[0.0, 0.0, 0.0], [2.0, 0.2, 0.0], [0.5, 3.0, 0.1]]
