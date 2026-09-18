@@ -17,7 +17,7 @@ calculation, validation, output, and deterministic behavior defined by
 The following are out of scope for this stage:
 
 - Numba or another JIT compiler;
-- multiprocessing, threading, or GPU execution;
+- multiprocessing or threading execution;
 - reduced precision or approximate spatial queries;
 - complete-burial shortcuts;
 - neighbor reordering based on blocking likelihood;
@@ -315,5 +315,5 @@ This stage is complete when:
   before production dispatch changes;
 - `calculate_atom_sasa()` dispatches to `atom_sasa_spatial()` after that gate
   is met; and
-- no multiprocessing, GPU, residue-SASA, or additional kernel optimization is
+- no multiprocessing, residue-SASA, or additional kernel optimization is
   introduced in this stage.

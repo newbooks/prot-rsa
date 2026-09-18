@@ -340,7 +340,7 @@ def test_backend_auto_and_cpu_agree_with_numpy_fallback() -> None:
 
 def test_spatial_rejects_unknown_backend() -> None:
     with pytest.raises(ValueError, match="backend must be 'auto' or 'cpu'"):
-        protrsa.atom_sasa_spatial([[0.0, 0.0, 0.0]], [1.0], backend="gpu")
+        protrsa.atom_sasa_spatial([[0.0, 0.0, 0.0]], [1.0], backend="invalid")
 
 
 def test_spatial_translation_permutation_and_repeat_invariants() -> None:

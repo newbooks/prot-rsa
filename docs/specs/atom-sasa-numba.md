@@ -18,14 +18,12 @@ This stage includes:
 - serial execution as the correctness baseline;
 - an explicitly controlled `parallel=True`/`prange` variant for benchmarking;
 - `backend="auto"`/`backend="cpu"` dispatch and capability checks that do not
-  initialize GPU or Numba runtimes on import; and
+  initialize Numba on import; and
 - focused equivalence, boundary, and benchmark coverage.
 
 The following are out of scope:
 
 - multiprocessing or nested process/thread execution;
-- GPU kernel implementation (GPU selection is deferred; `auto` uses CPU for
-  now);
 - changes to KD-tree discovery, CSR construction, neighbor ordering, or
   complete-burial detection;
 - `float32`, `fastmath=True`, approximate comparisons, or altered sphere-point
@@ -129,13 +127,9 @@ importing `protrsa` and calling the reference implementation must not compile
 or initialize Numba. The first spatial call may pay compilation cost; benchmark
 warm-ups must exclude that cost.
 
-GPU detection is deferred. During this stage, `backend="auto"` selects the
-Numba CPU implementation and falls back to the existing NumPy CPU kernel when
-Numba is unavailable. `backend="cpu"` must never
-initialize a GPU runtime and must use Numba CPU when available, with the NumPy
-CPU kernel as a compatibility fallback. A future explicit `backend="gpu"`
-request belongs to the GPU specification and must report a clear unavailable
-backend error rather than silently selecting CPU.
+`backend="auto"` and `backend="cpu"` both select the Numba CPU
+implementation and fall back to the existing NumPy CPU kernel when Numba is
+unavailable. No accelerator runtime is initialized or probed.
 
 If Numba is unavailable, disabled by an unsupported runtime, or compilation
 fails, the call must use the existing NumPy kernel. Automatic fallback must
@@ -190,8 +184,7 @@ Add focused `pytest` coverage for:
 5. translation, atom permutation, repeated calls, and input non-mutation;
 6. lazy compilation and import safety (no compilation on module import);
 7. missing-Numba or compilation-failure fallback to the NumPy kernel; and
-8. `backend="auto"` and `backend="cpu"` dispatch behavior, including the
-   guarantee that `cpu` does not initialize a GPU runtime; and
+8. `backend="auto"` and `backend="cpu"` dispatch behavior; and
 9. `calculate_atom_sasa()` and CLI outputs remaining unchanged.
 
 Parallel tests must compare results to serial Numba and use a modest fixed
