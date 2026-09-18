@@ -62,6 +62,7 @@ better.
 | Naive | 1 | 960 | 551 | 2185 | 11634 | 0 |
 | cKDTree | 1 | 960 | 18 | 37 | 84 | 0 |
 | Vectorized mask | 1 | 960 | 0.61 | 1.29 | 2.82 | 0 |
+| Occlusion-ordered neighbors | 1 | 960 | 0.32 | 0.63 | 1.62 | 0 |
 
 Benchmark structures: **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
@@ -81,6 +82,16 @@ warm-up. The benchmark retained 1,001 atoms for 1LYZ, 2,040 for 1CA2, and
 | 1LYZ | 41,780 (41.74/70) | 0.004674 | 19.490129 | 0.608863 | 32.01x |
 | 1CA2 | 88,946 (43.60/75) | 0.010259 | 40.643580 | 1.285390 | 31.62x |
 | 1UOR | 190,354 (41.24/72) | 0.021744 | 86.589739 | 2.820431 | 30.70x |
+
+Occlusion ordering was benchmarked against a fresh index-ordered vectorized
+baseline using identical inputs and five measured calls after one warm-up.
+The ordered CSR build time is included in the total.
+
+| Structure | Index-ordered time (s) | Ordered CSR build (s) | Occlusion-ordered time (s) | Net speedup |
+| --- | ---: | ---: | ---: | ---: |
+| 1LYZ | 0.433064 | 0.013525 | 0.319389 | 1.36x |
+| 1CA2 | 0.907509 | 0.020019 | 0.630230 | 1.44x |
+| 1UOR | 1.969482 | 0.045665 | 1.619650 | 1.22x |
 
 The production-dispatch crossover was also evaluated with deterministic dense
 synthetic grids using the same 960 sphere points. Coordinates were generated
@@ -104,4 +115,9 @@ vectorized outputs against `work/1LYZ.atom.sas.baseline`,
 2,040, and 4,616 atoms respectively and produced an exact MAE of 0.0 Å² for
 each structure. A sparse 125-atom input completed in 0.000211 s, and 1LYZ with
 122 sphere points completed in 0.253982 s. The vectorized kernel clears its 5x
-medium/large production gate by a wide margin.
+medium/large production gate by a wide margin. With occlusion ordering, the
+dense 27-, 64-, and 125-atom cases completed in 0.007628, 0.022669, and
+0.047146 s; the sparse 125-atom case completed in 0.000204 s; and the
+122-point 1LYZ case completed in 0.153097 s. Ordered outputs remained bitwise
+identical, and regenerated canonical SAS files retained exact 0.0 Å² MAE
+against all three baselines.

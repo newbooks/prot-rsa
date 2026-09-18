@@ -18,3 +18,6 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
 - [`atom-sasa-vectorized-mask.md`](atom-sasa-vectorized-mask.md): bounded
   NumPy exposed-point masks over CSR neighbors without blocking a later Numba
   kernel.
+- [`occlusion-ordered-neighbors.md`](occlusion-ordered-neighbors.md):
+  deterministic largest-cap-first CSR traversal shared by NumPy and future
+  compiled kernels.
