@@ -113,6 +113,32 @@ def test_calculation_uses_normalized_radius() -> None:
     assert sasa[0] == pytest.approx(4.0 * math.pi * normalized[0].radius**2)
 
 
+def test_calculation_dispatches_to_spatial_implementation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    normalized = protrsa.normalize_atoms([atom("CA", "C")])
+    expected = np.array([123.0])
+
+    def spatial_stub(
+        coordinates: object,
+        radii: object,
+        *,
+        probe_size: float,
+        sphere_points: object,
+    ) -> np.ndarray:
+        np.testing.assert_array_equal(coordinates, [[0.0, 0.0, 0.0]])
+        np.testing.assert_array_equal(radii, [normalized[0].radius])
+        assert probe_size == 0.75
+        assert sphere_points is None
+        return expected
+
+    monkeypatch.setattr(protrsa, "atom_sasa_spatial", spatial_stub)
+
+    result = protrsa.calculate_atom_sasa(normalized, probe_size=0.75)
+
+    assert result is expected
+
+
 def test_writers_emit_zero_charge_radius_and_sasa(tmp_path: Path) -> None:
     normalized = protrsa.normalize_atoms([atom("CA", "C")])
     pqr_path = tmp_path / "model.pqr"
