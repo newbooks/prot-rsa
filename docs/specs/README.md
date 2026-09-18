@@ -21,3 +21,5 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
 - [`occlusion-ordered-neighbors.md`](occlusion-ordered-neighbors.md):
   deterministic largest-cap-first CSR traversal shared by NumPy and future
   compiled kernels.
+- [`cache.md`](cache.md): invariant squared-radius and coordinate-component
+  reuse inside the NumPy kernel without changing its future Numba boundary.

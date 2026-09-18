@@ -63,6 +63,7 @@ better.
 | cKDTree | 1 | 960 | 18 | 37 | 84 | 0 |
 | Vectorized mask | 1 | 960 | 0.61 | 1.29 | 2.82 | 0 |
 | Occlusion-ordered neighbors | 1 | 960 | 0.32 | 0.63 | 1.62 | 0 |
+| Cache | 1 | 960 | 0.28 | 0.56 | 1.45 | 0 |
 
 Benchmark structures: **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
@@ -92,6 +93,12 @@ The ordered CSR build time is included in the total.
 | 1LYZ | 0.433064 | 0.013525 | 0.319389 | 1.36x |
 | 1CA2 | 0.907509 | 0.020019 | 0.630230 | 1.44x |
 | 1UOR | 1.969482 | 0.045665 | 1.619650 | 1.22x |
+
+The cache optimization was compared with the uncached occlusion-ordered
+kernel using identical CSR neighbors and five warmed-up calls. Median kernel
+times were 0.316585 s versus 0.282086 s for 1LYZ (1.12x), 0.612894 s versus
+0.549928 s for 1CA2 (1.11x), and 1.580235 s versus 1.412985 s for 1UOR
+(1.12x). Cached results were bitwise identical to the uncached kernel.
 
 The production-dispatch crossover was also evaluated with deterministic dense
 synthetic grids using the same 960 sphere points. Coordinates were generated

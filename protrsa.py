@@ -1011,23 +1011,33 @@ def _atom_sasa_from_neighbors(
         return np.empty(0, dtype=np.float64)
 
     point_count = sphere_points.shape[0]
+    expanded_radii_squared = np.empty_like(expanded_radii)
+    for atom_index, radius in enumerate(expanded_radii):
+        expanded_radii_squared[atom_index] = radius ** 2
+    atom_x = atom_coordinates[:, 0]
+    atom_y = atom_coordinates[:, 1]
+    atom_z = atom_coordinates[:, 2]
     surface_areas = np.empty(atom_count, dtype=np.float64)
     if neighbor_indices.size:
         sample_points = np.empty_like(sphere_points)
         displacements = np.empty_like(sphere_points)
         squared_distances = np.empty(point_count, dtype=np.float64)
+        outside_y_squared = np.empty(point_count, dtype=np.float64)
+        outside_z_squared = np.empty(point_count, dtype=np.float64)
         exposed = np.empty(point_count, dtype=np.bool_)
         outside_neighbor = np.empty(point_count, dtype=np.bool_)
 
     for atom_index in range(atom_count):
         neighbor_start = int(neighbor_offsets[atom_index])
         neighbor_stop = int(neighbor_offsets[atom_index + 1])
+        target_radius = expanded_radii[atom_index]
+        target_radius_squared = expanded_radii_squared[atom_index]
         if neighbor_start == neighbor_stop:
             exposed_count = point_count
         else:
             np.multiply(
                 sphere_points,
-                expanded_radii[atom_index],
+                target_radius,
                 out=sample_points,
             )
             np.add(sample_points, atom_coordinates[atom_index], out=sample_points)
@@ -1035,28 +1045,42 @@ def _atom_sasa_from_neighbors(
             for neighbor_position in range(neighbor_start, neighbor_stop):
                 other_index = neighbor_indices[neighbor_position]
                 np.subtract(
-                    sample_points,
-                    atom_coordinates[other_index],
-                    out=displacements,
+                    sample_points[:, 0], atom_x[other_index], out=displacements[:, 0]
+                )
+                np.subtract(
+                    sample_points[:, 1], atom_y[other_index], out=displacements[:, 1]
+                )
+                np.subtract(
+                    sample_points[:, 2], atom_z[other_index], out=displacements[:, 2]
                 )
                 np.multiply(
-                    displacements,
-                    displacements,
-                    out=displacements,
-                )
-                np.add(
                     displacements[:, 0],
-                    displacements[:, 1],
+                    displacements[:, 0],
                     out=squared_distances,
+                )
+                np.multiply(
+                    displacements[:, 1],
+                    displacements[:, 1],
+                    out=outside_y_squared,
                 )
                 np.add(
                     squared_distances,
+                    outside_y_squared,
+                    out=squared_distances,
+                )
+                np.multiply(
                     displacements[:, 2],
+                    displacements[:, 2],
+                    out=outside_z_squared,
+                )
+                np.add(
+                    squared_distances,
+                    outside_z_squared,
                     out=squared_distances,
                 )
                 np.greater(
                     squared_distances,
-                    expanded_radii[other_index] ** 2,
+                    expanded_radii_squared[other_index],
                     out=outside_neighbor,
                 )
                 np.logical_and(exposed, outside_neighbor, out=exposed)
@@ -1066,7 +1090,7 @@ def _atom_sasa_from_neighbors(
         surface_areas[atom_index] = (
             4.0
             * math.pi
-            * expanded_radii[atom_index] ** 2
+            * target_radius_squared
             * exposed_count
             / point_count
         )
