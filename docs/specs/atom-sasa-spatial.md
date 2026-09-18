@@ -1,6 +1,6 @@
 # Spatially Pruned Atom SASA Specification
 
-**Status:** Ready for implementation
+**Status:** Implemented
 
 ## Purpose and scope
 

@@ -57,10 +57,11 @@ The table below compares protein RSA calculation times under each
 optimization. Execution times are reported in seconds; lower values are
 better.
 
-| Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE (Å²) |
+| Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE vs `*.sas.baseline` (Å²) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Naive | 1 | 960 | 551 | 2185 | 11634 | 0 |
 | cKDTree | 1 | 960 | 18 | 37 | 84 | 0 |
+| Vectorized mask | 1 | 960 | 0.61 | 1.29 | 2.82 | 0 |
 
 Benchmark structures: **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
@@ -75,11 +76,11 @@ reproducible. Spatial timings are medians of five measured calls after one
 warm-up. The benchmark retained 1,001 atoms for 1LYZ, 2,040 for 1CA2, and
 4,616 for 1UOR after the documented default filtering.
 
-| Structure | Directed neighbors (mean/max) | Tree/list time (s) | Spatial time (s) | Speedup over recorded naive time |
-| --- | ---: | ---: | ---: | ---: |
-| 1LYZ | 41,780 (41.74/70) | 0.004674 | 19.490129 | 28.27x |
-| 1CA2 | 88,946 (43.60/75) | 0.010259 | 40.643580 | 53.76x |
-| 1UOR | 190,354 (41.24/72) | 0.021744 | 86.589739 | 134.36x |
+| Structure | Directed neighbors (mean/max) | Tree/list time (s) | cKDTree time (s) | Vectorized time (s) | Vectorized speedup |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1LYZ | 41,780 (41.74/70) | 0.004674 | 19.490129 | 0.608863 | 32.01x |
+| 1CA2 | 88,946 (43.60/75) | 0.010259 | 40.643580 | 1.285390 | 31.62x |
+| 1UOR | 190,354 (41.24/72) | 0.021744 | 86.589739 | 2.820431 | 30.70x |
 
 The production-dispatch crossover was also evaluated with deterministic dense
 synthetic grids using the same 960 sphere points. Coordinates were generated
@@ -87,13 +88,20 @@ from cubic grids with 2.1 Å spacing, with a repeating y-offset of 0.00, 0.17,
 and 0.34 Å; atomic radii repeated five evenly spaced values from 1.45 through
 1.80 Å.
 
-| Atoms | Directed neighbors (mean/max) | Tree/list time (s) | Reference time (s) | Spatial time (s) | Speedup |
-| ---: | ---: | ---: | ---: | ---: | ---: |
-| 27 | 636 (23.56/26) | 0.000156 | 0.371691 | 0.355585 | 1.05x |
-| 64 | 2,292 (35.81/58) | 0.000319 | 1.924054 | 1.081588 | 1.78x |
-| 125 | 5,616 (44.93/91) | 0.000686 | 7.239474 | 2.426148 | 2.98x |
+| Atoms | Directed neighbors (mean/max) | Tree/list time (s) | Reference time (s) | cKDTree time (s) | Vectorized time (s) | Vectorized speedup |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 27 | 636 (23.56/26) | 0.000156 | 0.371691 | 0.355585 | 0.010314 | 34.48x |
+| 64 | 2,292 (35.81/58) | 0.000319 | 1.924054 | 1.081588 | 0.036195 | 29.88x |
+| 125 | 5,616 (44.93/91) | 0.000686 | 7.239474 | 2.426148 | 0.080361 | 30.19x |
 
 These measurements used one process on an AMD Ryzen 9 6900HX under Linux,
 with NumPy 2.4.4 and SciPy 1.18.0. The spatial and reference results were
-bitwise identical. The largest synthetic case clears the provisional 2x gate;
-all three canonical structures clear it by a wide margin.
+bitwise identical. The vectorized results were also bitwise identical to the
+saved cKDTree outputs: maximum per-atom difference, MAE, and total-SASA
+difference were all zero. Strict row-by-row comparisons of newly generated
+vectorized outputs against `work/1LYZ.atom.sas.baseline`,
+`work/1CA2.atom.sas.baseline`, and `work/1UOR.atom.sas.baseline` matched 1,001,
+2,040, and 4,616 atoms respectively and produced an exact MAE of 0.0 Å² for
+each structure. A sparse 125-atom input completed in 0.000211 s, and 1LYZ with
+122 sphere points completed in 0.253982 s. The vectorized kernel clears its 5x
+medium/large production gate by a wide margin.
