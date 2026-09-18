@@ -969,6 +969,7 @@ def _build_spatial_neighbors(
         atol=0.0,
     )
     pairs = pairs[keep]
+    squared_distances = squared_distances[keep]
     if pairs.shape[0] == 0:
         return (
             np.zeros(atom_count + 1, dtype=np.intp),
@@ -977,7 +978,16 @@ def _build_spatial_neighbors(
 
     rows = np.concatenate((pairs[:, 0], pairs[:, 1]))
     columns = np.concatenate((pairs[:, 1], pairs[:, 0]))
-    order = np.lexsort((columns, rows))
+    directed_squared_distances = np.concatenate(
+        (squared_distances, squared_distances)
+    )
+    directed_distances = np.sqrt(directed_squared_distances)
+    target_radii = expanded_radii[rows]
+    neighbor_radii = expanded_radii[columns]
+    occlusion_scores = (
+        directed_squared_distances + target_radii**2 - neighbor_radii**2
+    ) / (2.0 * target_radii * directed_distances)
+    order = np.lexsort((columns, occlusion_scores, rows))
     rows = rows[order]
     indices = np.ascontiguousarray(columns[order], dtype=np.intp)
     counts = np.bincount(rows, minlength=atom_count)

@@ -46,8 +46,60 @@ def test_neighbor_csr_is_symmetric_sorted_and_exactly_filtered() -> None:
     assert offsets.dtype == np.intp
     assert indices.dtype == np.intp
     np.testing.assert_array_equal(offsets, [0, 1, 3, 4, 4])
-    assert rows == [[1], [0, 2], [1], []]
-    assert all(row == sorted(set(row)) for row in rows)
+    assert rows == [[1], [2, 0], [1], []]
+    assert all(len(row) == len(set(row)) for row in rows)
+
+
+def test_neighbors_are_ordered_by_largest_occlusion_cap() -> None:
+    coordinates = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+        ]
+    )
+    expanded_radii = np.array([2.0, 2.0, 2.0])
+
+    offsets, indices = protrsa._build_spatial_neighbors(
+        coordinates, expanded_radii
+    )
+
+    assert indices[offsets[0] : offsets[1]].tolist() == [2, 1]
+
+
+def test_equal_occlusion_scores_use_neighbor_index_tiebreaker() -> None:
+    coordinates = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [-2.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+        ]
+    )
+    expanded_radii = np.array([2.0, 2.0, 2.0])
+
+    offsets, indices = protrsa._build_spatial_neighbors(
+        coordinates, expanded_radii
+    )
+
+    assert indices[offsets[0] : offsets[1]].tolist() == [1, 2]
+
+
+def test_enclosing_neighbor_precedes_partial_and_contained_neighbors() -> None:
+    coordinates = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [0.25, 0.0, 0.0],
+            [3.0, 0.0, 0.0],
+            [0.5, 0.0, 0.0],
+        ]
+    )
+    expanded_radii = np.array([2.0, 4.0, 2.0, 0.5])
+
+    offsets, indices = protrsa._build_spatial_neighbors(
+        coordinates, expanded_radii
+    )
+
+    assert indices[offsets[0] : offsets[1]].tolist() == [1, 2, 3]
 
 
 def test_tangent_expanded_spheres_are_neighbors() -> None:
