@@ -24,6 +24,7 @@ def test_defaults(tmp_path: Path) -> None:
     assert arguments.mode == protrsa.DEFAULT_MODE
     assert arguments.prob_size == protrsa.DEFAULT_PROBE_SIZE
     assert arguments.workers == protrsa.DEFAULT_WORKERS
+    assert arguments.sphere_points == protrsa.DEFAULT_SPHERE_POINTS
     assert arguments.preserve_het is protrsa.DEFAULT_PRESERVE_HET
     assert arguments.use_h is protrsa.DEFAULT_USE_H
 
@@ -96,6 +97,28 @@ def test_invalid_worker_counts_are_rejected(tmp_path: Path, value: str) -> None:
         protrsa.parse_args([str(input_path), "--workers", value])
 
     assert error.value.code != 0
+
+
+@pytest.mark.parametrize("value", ["0", "121", "-1", "many"])
+def test_invalid_sphere_point_counts_are_rejected(
+    tmp_path: Path, value: str
+) -> None:
+    input_path = make_input(tmp_path)
+
+    with pytest.raises(SystemExit) as error:
+        protrsa.parse_args([str(input_path), "--sphere-points", value])
+
+    assert error.value.code != 0
+
+
+def test_sphere_point_count_accepts_minimum(tmp_path: Path) -> None:
+    input_path = make_input(tmp_path)
+
+    arguments = protrsa.parse_args(
+        [str(input_path), "--sphere-points", str(protrsa.MIN_SPHERE_POINTS)]
+    )
+
+    assert arguments.sphere_points == protrsa.MIN_SPHERE_POINTS
 
 
 @pytest.mark.parametrize(
@@ -231,13 +254,15 @@ def test_help_contains_required_contract() -> None:
         "--mode {ALL,SIDE}",
         "--prob-size FLOAT",
         "--workers INTEGER",
+        "--sphere-points INTEGER",
         "--preserve-het",
         "--use-h",
         "preserve loose hetero-atoms",
         "use hydrogen atoms supplied in the input file",
         "default: ALL",
         "default: 1.40",
-            "default: 1",
+        "default: 1",
+        "minimum 122",
         "default: false",
         "<base>.atom.sas",
         "<base>.pqr",
@@ -260,6 +285,7 @@ def test_direct_script_help_succeeds() -> None:
 
     assert result.returncode == 0
     assert "--prob-size FLOAT" in result.stdout
+    assert "--sphere-points INTEGER" in result.stdout
     assert result.stderr == ""
 
 

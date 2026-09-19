@@ -63,6 +63,7 @@ error, not an argument-parser responsibility.
 | `--mode {ALL,SIDE}` | String normalized to uppercase | `ALL` | Accept the two values case-insensitively; reject all others. |
 | `--prob-size FLOAT` | Floating-point number | `1.40` | Must be finite and greater than zero. |
 | `--workers INTEGER` | Integer | `1` | Numba CPU thread count; must be greater than zero. |
+| `--sphere-points INTEGER` | Integer | `960` | Deterministic sphere sample count; must be at least `122`. |
 | `--preserve-het` | Boolean presence flag | `False` | Supplying the flag sets the value to `True`; it takes no argument. |
 | `--use-h` | Boolean presence flag | `False` | Supplying the flag sets the value to `True`; it takes no argument. |
 
@@ -78,6 +79,7 @@ The parsed argument object must expose these attribute names and types:
 | `mode` | `str` (`ALL` or `SIDE`) |
 | `prob_size` | `float` |
 | `workers` | `int` |
+| `sphere_points` | `int` |
 | `preserve_het` | `bool` |
 | `use_h` | `bool` |
 
@@ -127,7 +129,8 @@ although exact whitespace and parser-generated punctuation may vary:
 
 ```text
 usage: prot-rsa [-h] [--mode {ALL,SIDE}] [--prob-size FLOAT]
-                [--workers INTEGER] [--preserve-het] [--use-h]
+                [--workers INTEGER] [--sphere-points INTEGER]
+                [--preserve-het] [--use-h]
                 INPUT
 
 Calculate atom solvent-accessible surface areas for a protein structure.
@@ -142,6 +145,9 @@ options:
                         atom selection mode (default: ALL)
   --prob-size FLOAT     solvent probe radius in angstroms (default: 1.40)
   --workers INTEGER     number of Numba CPU threads (default: 1)
+  --sphere-points INTEGER
+                        number of deterministic sphere samples (minimum 122;
+                        default: 960)
   --preserve-het        preserve loose hetero-atoms (default: false)
   --use-h               use hydrogen atoms supplied in the input file
                         (default: false)
