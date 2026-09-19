@@ -143,7 +143,7 @@ and 1.54129259e-7 Å² for 1LYZ, 1CA2, and 1UOR, respectively; maximum absolute
 errors were below 5.0e-7 Å² in all three cases. The Numba row reports total
 `atom_sasa_spatial()` time, including validation, CSR construction, burial-mask
 construction, and kernel execution. With the default one thread, the measured
-medians were approximately 0.098 s, 0.135 s, and 0.294 s, respectively.
+medians were approximately 0.328 s, 0.388 s, and 0.735 s, respectively.
 Four-thread execution remains available through `workers=4` for workloads
 where it provides a measured benefit.
 
