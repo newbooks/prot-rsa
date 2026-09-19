@@ -62,7 +62,7 @@ positional arguments:
   INPUT                 PDB or mmCIF structure (.pdb, .cif, .pdb.gz, or .cif.gz)
 
 options:
-  --mode {ALL,SIDE,KEY} Atom selection mode (default: ALL)
+  --mode {ALL,SIDE} Atom selection mode (default: ALL)
   --prob-size FLOAT     Solvent probe radius in angstroms (default: 1.40)
   --workers INTEGER     Number of Numba CPU threads (default: 1)
   --preserve-het        Preserve loose hetero-atoms (default: false)
@@ -74,10 +74,10 @@ its value false, while supplying it sets the value to true. `--mode` values
 should be accepted case-insensitively and normalized to uppercase. The CLI
 must reject a nonpositive probe size or worker count with a clear error.
 
-The precise atom-selection rules for `SIDE` and `KEY`, and the definition of a
-"loose hetero atom," remain scientific contract decisions. They must be
-specified and tested before these modes are implemented; the parser must not
-silently invent those rules.
+The precise atom-selection rules for `SIDE`, and the definition of a "loose
+hetero atom," remain scientific contract decisions. They must be specified and
+tested before `SIDE` is implemented; the parser must not silently invent those
+rules.
 
 ### Output files
 
@@ -153,7 +153,7 @@ numerator, but removes all other residues. It therefore normalizes out
 self-shielding caused by the residue's own conformation and measures the
 fraction of its intrinsic surface retained in the complete protein. The
 denominator is computed per residue instance, so terminal residues require no
-special reference treatment. `SIDE` and `KEY` modes are deferred.
+special reference treatment. `SIDE` mode is deferred.
 
 CEF should be bounded in `[0, 1]` within floating-point roundoff. The
 implementation must not silently substitute a residue-type maximum-ASA table;

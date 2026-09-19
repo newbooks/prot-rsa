@@ -57,7 +57,7 @@ def test_probe_default_and_help_derive_from_constant(
 
 @pytest.mark.parametrize(
     ("supplied", "expected"),
-    [("ALL", "ALL"), ("all", "ALL"), ("SiDe", "SIDE"), ("key", "KEY")],
+    [("ALL", "ALL"), ("all", "ALL"), ("SiDe", "SIDE")],
 )
 def test_modes_are_case_insensitive(
     tmp_path: Path, supplied: str, expected: str
@@ -228,7 +228,7 @@ def test_help_contains_required_contract() -> None:
         ".cif",
         ".pdb.gz",
         ".cif.gz",
-        "--mode {ALL,SIDE,KEY}",
+        "--mode {ALL,SIDE}",
         "--prob-size FLOAT",
         "--workers INTEGER",
         "--preserve-het",

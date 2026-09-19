@@ -11,9 +11,9 @@ calculated in isolation. The normalized value is named **Contextual Exposure
 Fraction (CEF)**. It is intentionally distinct from conventional RSA, which
 normally uses a residue-type reference or maximum ASA.
 
-This stage supports only `ALL` atom-selection mode. `SIDE` and `KEY` are
-deferred and must remain rejected by the CLI until separate scientific
-contracts are specified.
+This stage supports only `ALL` atom-selection mode. `SIDE` is deferred and
+must remain rejected by the CLI until its separate scientific contract is
+specified.
 
 For residue `i`:
 
@@ -32,7 +32,7 @@ so the denominator includes self-shielding caused by the residue's own
 conformation. Terminal residues require no special reference treatment.
 
 This stage does not define conventional maximum-ASA tables, residue-type
-reference values, side-chain-only exposure, key-atom exposure, or residue
+reference values, side-chain-only exposure, atom-subset exposure, or residue
 classification thresholds.
 
 ## Output file and schema
@@ -156,7 +156,7 @@ The CLI must:
 
 - continue to derive `.res.sas` from the input path using the existing rules;
 - write the residue report in the same successful run as `.atom.sas`;
-- reject `SIDE` and `KEY` with the existing not-implemented error; and
+- reject `SIDE` with the existing not-implemented error; and
 - leave no partial residue file if parsing or either SASA calculation fails.
 
 ## Required tests

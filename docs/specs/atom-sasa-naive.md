@@ -104,8 +104,8 @@ The normalized internal record must retain the source atom metadata and add
 the normalized element and assigned radius. Its coordinates and radii are
 passed, in the same order, to `atom_sasa_reference()`.
 
-The initial atom-only CLI supports `--mode ALL`; it must reject `SIDE` and
-`KEY` clearly until their atom-selection rules are specified. It writes:
+The initial atom-only CLI supports `--mode ALL`; it must reject `SIDE` clearly
+until its atom-selection rules are specified. It writes:
 
 - `<base>.atom.sas`, a TSV with atom index, source record type and identifier,
   atom and residue identifiers, normalized element, radius in Å, and absolute

@@ -70,8 +70,7 @@ radii, probe radius, sphere points, and `ALL` atom-selection rule, but without
 other residues present. CEF therefore represents the fraction of the residue's
 intrinsic, same-conformation surface that remains exposed in its protein
 context. It is distinct from conventional RSA, which normally uses a fixed
-residue-type reference or maximum ASA. `SIDE` and `KEY` selection modes are
-deferred.
+residue-type reference or maximum ASA. `SIDE` selection mode is deferred.
 
 CEF is expected to lie in `[0, 1]` up to floating-point roundoff. The residue
 output format and public API are still under development.
