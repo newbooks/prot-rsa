@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-import protrsa
+import compare_sas
 
 
-HEADER = "\t".join(protrsa.ATOM_SASA_COLUMNS) + "\n"
+HEADER = "\t".join(compare_sas.ATOM_SASA_COLUMNS) + "\n"
 
 
 def sas_row(*, atom_index: int, atom_name: str, sasa: str) -> str:
@@ -44,7 +44,7 @@ def test_compare_atom_sasa_files_returns_count_and_mae(tmp_path: Path) -> None:
         sas_row(atom_index=2, atom_name="CB", sasa="17.0"),
     )
 
-    atom_count, mae = protrsa.compare_atom_sasa_files(first, second)
+    atom_count, mae = compare_sas.compare_atom_sasa_files(first, second)
 
     assert atom_count == 2
     assert mae == pytest.approx(2.5)
@@ -58,7 +58,7 @@ def test_compare_command_prints_atom_count_and_mae(
     write_sas(first, sas_row(atom_index=1, atom_name="CA", sasa="1.25"))
     write_sas(second, sas_row(atom_index=1, atom_name="CA", sasa="2.00"))
 
-    exit_status = protrsa.compare_sas_main([str(first), str(second)])
+    exit_status = compare_sas.compare_sas_main([str(first), str(second)])
 
     assert exit_status == 0
     assert capsys.readouterr().out == "Atoms matched: 1\nSASA MAE: 0.750000 Å²\n"
@@ -80,7 +80,7 @@ def test_compare_allows_different_atomic_radii(tmp_path: Path) -> None:
         ),
     )
 
-    atom_count, mae = protrsa.compare_atom_sasa_files(first, second)
+    atom_count, mae = compare_sas.compare_atom_sasa_files(first, second)
 
     assert atom_count == 1
     assert mae == pytest.approx(2.0)
@@ -97,7 +97,7 @@ def test_compare_rejects_atom_count_mismatch(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ValueError, match="atom count mismatch"):
-        protrsa.compare_atom_sasa_files(first, second)
+        compare_sas.compare_atom_sasa_files(first, second)
 
 
 def test_compare_reports_first_atom_metadata_mismatch(tmp_path: Path) -> None:
@@ -107,7 +107,7 @@ def test_compare_reports_first_atom_metadata_mismatch(tmp_path: Path) -> None:
     write_sas(second, sas_row(atom_index=1, atom_name="CB", sasa="1.0"))
 
     with pytest.raises(ValueError, match=r"data row 1.*atom_name"):
-        protrsa.compare_atom_sasa_files(first, second)
+        compare_sas.compare_atom_sasa_files(first, second)
 
 
 @pytest.mark.parametrize(
@@ -128,4 +128,4 @@ def test_compare_rejects_invalid_sas_file(
     write_sas(second, sas_row(atom_index=1, atom_name="CA", sasa="1.0"))
 
     with pytest.raises(ValueError, match=match):
-        protrsa.compare_atom_sasa_files(first, second)
+        compare_sas.compare_atom_sasa_files(first, second)

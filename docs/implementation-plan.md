@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build `prot-rsa` as a public PyPI application for calculating protein atom and residue solvent-accessible surface area (SASA). The application will live in one import-safe Python file, `protrsa.py`, which can be run directly, invoked through the installed `prot-rsa` command, or imported as the `protrsa` module.
+Build `prot-rsa` as a public PyPI application for calculating protein atom and residue solvent-accessible surface area (SASA). The main calculation application will live in one import-safe Python file, `protrsa.py`, which can be run directly, invoked through the installed `prot-rsa` command, or imported as the `protrsa` module. The atom-SASA comparison utility is a separate import-safe `compare_sas.py` script and installed `prot-rsa-compare` command.
 
 The implementation will start from the previous PyMCCE SASA code while correcting known issues, defining a stable scientific contract, and adding validated CPU and multiprocessing execution paths.
 
@@ -11,6 +11,7 @@ The implementation will start from the previous PyMCCE SASA code while correctin
 ```bash
 python protrsa.py structure.pdb
 prot-rsa structure.cif.gz --mode SIDE --prob-size 1.40 --workers 4
+prot-rsa-compare first.atom.sas second.atom.sas
 ```
 
 ```python
@@ -19,12 +20,18 @@ import protrsa
 result = protrsa.calculate_sasa(...)
 ```
 
-Importing `protrsa` must not parse command-line arguments, create worker processes, initialize Numba, or perform calculations. Direct execution will be protected by:
+Importing `protrsa` or `compare_sas` must not parse command-line arguments,
+create worker processes, initialize Numba, or perform calculations. Direct
+execution will be protected by:
 
 ```python
 if __name__ == "__main__":
     main()
 ```
+
+The installed `prot-rsa-compare` entry point must resolve to
+`compare_sas.compare_sas_main`; comparison code must not be imported into or
+executed by `protrsa.main`.
 
 ## Basic program setup: input and output contract
 
@@ -77,7 +84,8 @@ silently invent those rules.
 Each successful run writes exactly two files alongside the input file:
 
 - `<base>.atom.sas`, a TSV file containing atom solvent-accessible surface areas
-- `<base>.res.sas`, a TSV file containing residue solvent-accessible surface areas
+- `<base>.res.sas`, a TSV file containing residue solvent-accessible surface
+  areas and the planned Contextual Exposure Fraction (CEF)
 
 `<base>` is the input path with the optional final `.gz` suffix removed,
 followed by the `.pdb` or `.cif` suffix removed. For example:
@@ -92,8 +100,8 @@ followed by the `.pdb` or `.cif` suffix removed. For example:
 Both `.sas` files use tab-separated values. The initial atom-output columns,
 units, precision, ordering, and atomic-overwrite policy are defined in
 [`specs/atom-sasa-naive.md`](specs/atom-sasa-naive.md). Residue-output details
-remain deferred. Output files are written only after parsing and calculation
-succeed.
+remain deferred, except for the CEF scientific definition below. Output files
+are written only after parsing and calculation succeed.
 
 ## Known issues in the starting code
 
@@ -116,7 +124,7 @@ Before implementing scientific behavior, decide and document:
 2. Whether explicitly present hydrogen atoms participate.
 3. Whether waters, ions, ligands, and other non-protein atoms occlude protein surfaces.
 4. Whether residue SASA means residue atoms exposed in the context of the complete structure.
-5. Whether to report absolute SASA only or relative SASA as well.
+5. Whether to report absolute SASA and the defined CEF metric together.
 6. The detailed PDB and mmCIF model, alternate-location, and disorder rules.
 7. The default sphere sampling method and resolution.
 8. The expected units and numerical tolerance used for validation.
@@ -130,6 +138,29 @@ Hydrogens are excluded unless `--use-h` is supplied. Loose hetero atoms are
 excluded unless `--preserve-het` is supplied. This does not yet settle the
 atomic radii set or the precise selection rules for hetero atoms and each
 calculation mode.
+
+The first relative-exposure metric is **Contextual Exposure Fraction (CEF)**,
+not conventional RSA. For residue `i`:
+
+```text
+CEF[i] = SASA[i] in the complete protein
+         / SASA[i] for the same residue conformation in isolation
+```
+
+The naked-residue denominator uses exactly the same residue atoms, selected
+atomic radii, probe radius, sphere points, and `ALL` atom-selection rule as the
+numerator, but removes all other residues. It therefore normalizes out
+self-shielding caused by the residue's own conformation and measures the
+fraction of its intrinsic surface retained in the complete protein. The
+denominator is computed per residue instance, so terminal residues require no
+special reference treatment. `SIDE` and `KEY` modes are deferred.
+
+CEF should be bounded in `[0, 1]` within floating-point roundoff. The
+implementation must not silently substitute a residue-type maximum-ASA table;
+that would define conventional RSA rather than CEF.
+
+The complete residue-level contract is defined in
+[`specs/residue-cef.md`](specs/residue-cef.md).
 
 ## Phase 2: Define the public API
 
@@ -170,7 +201,10 @@ calculate_sasa(
     ...
 ```
 
-A structured result will record per-atom fractions and areas, per-residue areas, total area, units, probe radius, sampling resolution, backend, worker count, and input warnings. Public constants, result types, and exceptions will be importable directly from `protrsa`.
+A structured result will record per-atom fractions and areas, per-residue areas
+and CEF values, total area, units, probe radius, sampling resolution, backend,
+worker count, and input warnings. Public constants, result types, and
+exceptions will be importable directly from `protrsa`.
 
 ## Phase 3: Validate and normalize input
 
@@ -191,6 +225,8 @@ Create a straightforward CPU implementation:
 3. Identify samples inside any other expanded atomic sphere.
 4. Calculate each atom's exposed fraction and area.
 5. Aggregate atom areas into residues and a total separately.
+6. For `ALL`, calculate each residue's naked-residue denominator and report
+   CEF alongside the contextual residue SASA.
 
 This implementation will be the oracle for optimized backends and remain available for testing. Boundary behavior, including a point exactly on another expanded sphere, will be explicit and identical across backends.
 
@@ -322,6 +358,8 @@ Every new function will receive focused `pytest` coverage, and tests will run be
 - Failed runs do not leave only one output file or partial output files.
 - CLI failures return appropriate exit codes.
 - Source and wheel distributions include `protrsa.py`, `README.md`, and `LICENSE`.
+- Source and wheel distributions include `compare_sas.py`, and the
+  `prot-rsa-compare` entry point resolves to that separate module.
 - Built distributions pass PyPI metadata validation.
 
 ## Public-release requirements
@@ -345,7 +383,8 @@ Before the stable release:
    [`specs/atom-sasa-numba.md`](specs/atom-sasa-numba.md).
 6. Add exact neighbor filtering, complete-burial masking, neighbor ordering,
    and residue aggregation according to
-   [`specs/atom-sasa-burial.md`](specs/atom-sasa-burial.md).
+   [`specs/atom-sasa-burial.md`](specs/atom-sasa-burial.md) and
+   [`specs/residue-cef.md`](specs/residue-cef.md).
 7. Implement and test the Numba kernel according to
    [`specs/atom-sasa-numba.md`](specs/atom-sasa-numba.md), then benchmark
    kernel layouts.

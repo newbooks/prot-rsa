@@ -114,9 +114,11 @@ The initial atom-only CLI supports `--mode ALL`; it must reject `SIDE` and
   serials, and the explicitly approved placeholder charge `0.000` for every
   atom.
 
-No `.res.sas` file is written during this atom-only stage. Output order is the
-normalized atom order. SASA is written to six decimal places and radii to three
-decimal places. PQR output is a radius-bearing interchange file only; its zero
+The atom numerical reference does not perform residue aggregation or
+serialization; the production CLI writes `.res.sas` through the separate
+residue-CEF stage. Atom output order is the normalized atom order. SASA is
+written to six decimal places and radii to three decimal places. PQR output is
+a radius-bearing interchange file only; its zero
 charges must not be interpreted as an electrostatic charge model. The CLI must
 always replace existing atom-SASA and PQR outputs. Each file must be written to
 a temporary file in the destination directory and atomically replace its final

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 from dataclasses import dataclass
 import gzip
 import math
@@ -44,6 +43,15 @@ ATOM_SASA_COLUMNS = (
     "sasa_A2",
 )
 ATOM_IDENTITY_COLUMNS = ATOM_SASA_COLUMNS[:-2]
+RESIDUE_CEF_COLUMNS = (
+    "residue_name",
+    "chain_id",
+    "residue_sequence",
+    "insertion_code",
+    "sasa_inprotein",
+    "sasa_reference",
+    "cef",
+)
 
 
 def _validate_workers(workers: int) -> int:
@@ -189,6 +197,19 @@ class NormalizedAtom:
     source: AtomRecord
     element: str
     radius: float
+
+
+@dataclass(frozen=True, slots=True)
+class ResidueCefRecord:
+    """Residue SASA and contextual exposure values for one residue."""
+
+    residue_name: str
+    chain_id: str
+    residue_sequence: str
+    insertion_code: str
+    sasa_inprotein: float
+    sasa_reference: float
+    cef: float
 
 
 STANDARD_AMINO_ACIDS = frozenset(
@@ -661,6 +682,97 @@ def calculate_atom_sasa(
     return atom_sasa_spatial(coordinates, radii, **spatial_kwargs)
 
 
+def _residue_key(atom: NormalizedAtom) -> tuple[str, str, str, str]:
+    """Return the stable output identity key for one normalized atom."""
+
+    source = atom.source
+    return (
+        source.residue_name,
+        source.chain_id,
+        source.residue_sequence,
+        source.insertion_code,
+    )
+
+
+def calculate_residue_sasa(
+    atoms: Sequence[NormalizedAtom],
+    atom_sasa: Sequence[float],
+    *,
+    probe_size: float = DEFAULT_PROBE_SIZE,
+    sphere_points: np.ndarray | None = None,
+    backend: str = DEFAULT_BACKEND,
+    workers: int = DEFAULT_WORKERS,
+) -> list[ResidueCefRecord]:
+    """Aggregate atom SASA and calculate naked-residue CEF values."""
+
+    if len(atoms) != len(atom_sasa):
+        raise ValueError("atoms and atom_sasa must have the same length")
+    workers = _validate_workers(workers)
+    atom_sasa_array = np.asarray(atom_sasa, dtype=np.float64)
+    if atom_sasa_array.shape != (len(atoms),):
+        raise ValueError("atom_sasa must be a one-dimensional sequence")
+    if not np.all(np.isfinite(atom_sasa_array)):
+        raise ValueError("atom_sasa must contain only finite values")
+    if not atoms:
+        return []
+
+    points = (
+        generate_sphere_points(DEFAULT_SPHERE_POINTS)
+        if sphere_points is None
+        else sphere_points
+    )
+    residue_indices: dict[tuple[str, str, str, str], list[int]] = {}
+    for atom_index, atom in enumerate(atoms):
+        residue_indices.setdefault(_residue_key(atom), []).append(atom_index)
+
+    records: list[ResidueCefRecord] = []
+    for key, indices in residue_indices.items():
+        coordinates = np.asarray(
+            [
+                (
+                    atoms[index].source.x,
+                    atoms[index].source.y,
+                    atoms[index].source.z,
+                )
+                for index in indices
+            ],
+            dtype=np.float64,
+        )
+        radii = np.asarray([atoms[index].radius for index in indices], dtype=np.float64)
+        reference_atom_sasa = atom_sasa_spatial(
+            coordinates,
+            radii,
+            probe_size=probe_size,
+            sphere_points=points,
+            backend=backend,
+            workers=workers,
+        )
+        sasa_inprotein = float(np.sum(atom_sasa_array[indices], dtype=np.float64))
+        sasa_reference = float(np.sum(reference_atom_sasa, dtype=np.float64))
+        if not math.isfinite(sasa_reference) or sasa_reference <= 0.0:
+            raise ValueError(
+                "residue reference SASA must be finite and greater than zero"
+            )
+        if sasa_inprotein < -1e-12 or sasa_inprotein > sasa_reference + 1e-12:
+            raise ValueError("residue in-protein SASA exceeds its reference SASA")
+        cef = sasa_inprotein / sasa_reference
+        if cef < -1e-12 or cef > 1.0 + 1e-12:
+            raise ValueError("residue CEF is outside the allowed [0, 1] range")
+        cef = min(1.0, max(0.0, cef))
+        records.append(
+            ResidueCefRecord(
+                residue_name=key[0],
+                chain_id=key[1],
+                residue_sequence=key[2],
+                insertion_code=key[3],
+                sasa_inprotein=sasa_inprotein,
+                sasa_reference=sasa_reference,
+                cef=cef,
+            )
+        )
+    return records
+
+
 def _write_new_text(output_path: str | Path, text: str) -> None:
     """Atomically create or replace one text file."""
 
@@ -719,97 +831,40 @@ def write_atom_sasa_tsv(
     _write_new_text(output_path, "".join(lines))
 
 
-def _read_atom_sasa_tsv(
-    input_path: str | Path,
-) -> tuple[list[tuple[str, ...]], np.ndarray]:
-    """Read atom identities and SASA values from one prot-rsa TSV file."""
+def write_residue_cef_tsv(
+    output_path: str | Path,
+    records: Sequence[ResidueCefRecord],
+) -> None:
+    """Write residue SASA and CEF values as a three-decimal TSV."""
 
-    path = Path(input_path)
-    identities: list[tuple[str, ...]] = []
-    sasa_values: list[float] = []
-    with path.open(mode="r", encoding="utf-8", newline="") as input_file:
-        reader = csv.DictReader(input_file, delimiter="\t")
-        if reader.fieldnames != list(ATOM_SASA_COLUMNS):
-            expected = "\t".join(ATOM_SASA_COLUMNS)
-            actual = "\t".join(reader.fieldnames or [])
-            raise ValueError(
-                f"'{path}' has an unexpected header; expected {expected!r}, "
-                f"found {actual!r}"
-            )
-        for line_number, row in enumerate(reader, start=2):
-            if None in row or any(
-                row[column] is None for column in ATOM_SASA_COLUMNS
-            ):
-                raise ValueError(f"'{path}' has a malformed row on line {line_number}")
-            identities.append(tuple(row[column] for column in ATOM_IDENTITY_COLUMNS))
-            try:
-                sasa = float(row["sasa_A2"])
-            except ValueError as error:
-                raise ValueError(
-                    f"'{path}' has an invalid sasa_A2 value on line {line_number}"
-                ) from error
-            if not math.isfinite(sasa):
-                raise ValueError(
-                    f"'{path}' has a non-finite sasa_A2 value on line {line_number}"
-                )
-            sasa_values.append(sasa)
-
-    if not identities:
-        raise ValueError(f"'{path}' contains no atom rows")
-    return identities, np.asarray(sasa_values, dtype=np.float64)
+    lines = ["\t".join(RESIDUE_CEF_COLUMNS) + "\n"]
+    for record in records:
+        lines.append(
+            f"{record.residue_name}\t{record.chain_id}\t"
+            f"{record.residue_sequence}\t{record.insertion_code}\t"
+            f"{record.sasa_inprotein:.3f}\t{record.sasa_reference:.3f}\t"
+            f"{record.cef:.3f}\n"
+        )
+    _write_new_text(output_path, "".join(lines))
 
 
 def compare_atom_sasa_files(
     first_path: str | Path,
     second_path: str | Path,
 ) -> tuple[int, float]:
-    """Verify matching atom rows and return their count and SASA MAE."""
+    """Compatibility wrapper for the standalone comparison utility."""
 
-    first_identities, first_sasa = _read_atom_sasa_tsv(first_path)
-    second_identities, second_sasa = _read_atom_sasa_tsv(second_path)
-    if len(first_identities) != len(second_identities):
-        raise ValueError(
-            "atom count mismatch: "
-            f"'{first_path}' has {len(first_identities)} rows, "
-            f"'{second_path}' has {len(second_identities)} rows"
-        )
-    for row_number, (first_atom, second_atom) in enumerate(
-        zip(first_identities, second_identities),
-        start=1,
-    ):
-        if first_atom != second_atom:
-            differing_columns = [
-                column
-                for column, first_value, second_value in zip(
-                    ATOM_IDENTITY_COLUMNS, first_atom, second_atom
-                )
-                if first_value != second_value
-            ]
-            raise ValueError(
-                f"atom mismatch at data row {row_number}; differing columns: "
-                + ", ".join(differing_columns)
-            )
-    mae = float(np.mean(np.abs(first_sasa - second_sasa)))
-    return len(first_identities), mae
+    from compare_sas import compare_atom_sasa_files as _compare_atom_sasa_files
+
+    return _compare_atom_sasa_files(first_path, second_path)
 
 
 def compare_sas_main(argv: Sequence[str] | None = None) -> int:
-    """Run the atom-SASA comparison command-line interface."""
+    """Compatibility wrapper for the standalone comparison CLI."""
 
-    parser = argparse.ArgumentParser(
-        prog="prot-rsa-compare",
-        description="Verify matching atom rows and calculate SASA MAE.",
-    )
-    parser.add_argument("first", type=Path, metavar="FIRST.atom.sas")
-    parser.add_argument("second", type=Path, metavar="SECOND.atom.sas")
-    arguments = parser.parse_args(argv)
-    try:
-        atom_count, mae = compare_atom_sasa_files(arguments.first, arguments.second)
-    except (OSError, ValueError) as error:
-        parser.error(str(error))
-    print(f"Atoms matched: {atom_count}")
-    print(f"SASA MAE: {mae:.6f} Å²")
-    return 0
+    from compare_sas import compare_sas_main as _compare_sas_main
+
+    return _compare_sas_main(argv)
 
 
 def generate_sphere_points(
@@ -1575,7 +1630,7 @@ def build_parser(*, prog: str | None = None) -> argparse.ArgumentParser:
             "output files:\n"
             "  <base>.atom.sas       atom solvent-accessible surface areas\n"
             "  <base>.pqr            normalized atoms, radii, and zero charges\n"
-            "  <base>.res.sas        reserved for the later residue-SASA stage\n\n"
+            "  <base>.res.sas        residue SASA and contextual exposure\n\n"
             "The output files are written alongside INPUT. <base> is INPUT with "
             ".gz, when present, and then .pdb or .cif removed."
         ),
@@ -1666,7 +1721,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     if arguments.mode != "ALL":
         parser.error("SIDE and KEY atom-selection modes are not implemented yet")
-    atom_output, _ = derive_output_paths(arguments.input)
+    atom_output, residue_output = derive_output_paths(arguments.input)
     pqr_output = derive_pqr_path(arguments.input)
     try:
         source_atoms = read_structure(arguments.input)
@@ -1680,10 +1735,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             probe_size=arguments.prob_size,
             workers=arguments.workers,
         )
+        residue_records = calculate_residue_sasa(
+            atoms,
+            atom_sasa,
+            probe_size=arguments.prob_size,
+            workers=arguments.workers,
+        )
     except (StructureReadError, ValueError) as error:
         parser.error(str(error))
     try:
         write_atom_sasa_tsv(atom_output, atoms, atom_sasa)
+        write_residue_cef_tsv(residue_output, residue_records)
         write_pqr(pqr_output, atoms)
     except OSError as error:
         parser.error(f"could not write output files: {error}")

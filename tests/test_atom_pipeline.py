@@ -232,11 +232,13 @@ def test_cli_writes_atom_sasa_and_pqr_for_single_atom(
 
     assert exit_status == 0
     atom_output = tmp_path / "one.atom.sas"
+    residue_output = tmp_path / "one.res.sas"
     pqr_output = tmp_path / "one.pqr"
     assert atom_output.is_file()
+    assert residue_output.is_file()
     assert pqr_output.is_file()
-    assert not (tmp_path / "one.res.sas").exists()
     assert "sasa_A2" in atom_output.read_text(encoding="utf-8")
+    assert "sasa_inprotein" in residue_output.read_text(encoding="utf-8")
     assert "0.000" in pqr_output.read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert captured.out == ""

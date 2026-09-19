@@ -91,13 +91,12 @@ the type and validation described above.
 
 ## Output path derivation
 
-A successful initial atom calculation produces two files alongside the input:
+A successful calculation produces three files alongside the input:
 
 - `<base>.atom.sas`, a TSV file for atom solvent-accessible surface areas;
-- `<base>.pqr`, normalized atoms with radii and placeholder zero charges.
-
-`<base>.res.sas` remains the reserved residue-SASA path but is not written by
-the atom-only stage.
+- `<base>.pqr`, normalized atoms with radii and placeholder zero charges; and
+- `<base>.res.sas`, a TSV file for residue SASA and Contextual Exposure
+  Fraction as defined in [`residue-cef.md`](residue-cef.md).
 
 Derive `<base>` by removing a final `.gz` suffix when present and then removing
 the final `.pdb` or `.cif` suffix. Suffix removal must follow the same
@@ -106,7 +105,7 @@ all earlier parts of the filename.
 
 Examples:
 
-| Input | Atom output | PQR output | Reserved residue output |
+| Input | Atom output | PQR output | Residue output |
 | --- | --- | --- | --- |
 | `protein.pdb` | `protein.atom.sas` | `protein.pqr` | `protein.res.sas` |
 | `protein.cif.gz` | `protein.atom.sas` | `protein.pqr` | `protein.res.sas` |
@@ -114,8 +113,8 @@ Examples:
 | `/data/set/protein.cif` | `/data/set/protein.atom.sas` | `/data/set/protein.pqr` | `/data/set/protein.res.sas` |
 
 Output paths must be derived by a reusable pure function. The function must
-not create, truncate, or otherwise modify either file. The atom-SASA stage
-atomically replaces existing `.atom.sas` and `.pqr` outputs as defined in
+not create, truncate, or otherwise modify any output file. The calculation
+atomically replaces existing `.atom.sas`, `.res.sas`, and `.pqr` outputs as defined in
 [`atom-sasa-naive.md`](atom-sasa-naive.md). The `.sas` suffix does not change
 the format: SASA files use tab-separated values rather than comma-separated
 values.
@@ -150,7 +149,7 @@ options:
 output files:
   <base>.atom.sas       atom solvent-accessible surface areas
   <base>.pqr            normalized atoms, radii, and zero charges
-  <base>.res.sas        reserved for the later residue-SASA stage
+  <base>.res.sas        residue SASA and contextual exposure
 
 The output files are written alongside INPUT. <base> is INPUT with .gz, when
 present, and then .pdb or .cif removed.
