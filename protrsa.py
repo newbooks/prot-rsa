@@ -27,7 +27,7 @@ DEFAULT_WORKERS = 1
 DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
 DEFAULT_BACKEND = "auto"
-MODES = ("ALL", "SIDE", "KEY")
+MODES = ("ALL", "SIDE")
 SUPPORTED_INPUT_SUFFIXES = (".pdb", ".cif", ".pdb.gz", ".cif.gz")
 ATOM_SASA_COLUMNS = (
     "atom_index",
@@ -1720,7 +1720,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     arguments = parser.parse_args(argv)
     if arguments.mode != "ALL":
-        parser.error("SIDE and KEY atom-selection modes are not implemented yet")
+        parser.error("SIDE atom-selection mode is not implemented yet")
     atom_output, residue_output = derive_output_paths(arguments.input)
     pqr_output = derive_pqr_path(arguments.input)
     try:

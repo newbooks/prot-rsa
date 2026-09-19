@@ -60,7 +60,7 @@ error, not an argument-parser responsibility.
 
 | Option | Parsed value | Default | Requirements |
 | --- | --- | --- | --- |
-| `--mode {ALL,SIDE,KEY}` | String normalized to uppercase | `ALL` | Accept the three values case-insensitively; reject all others. |
+| `--mode {ALL,SIDE}` | String normalized to uppercase | `ALL` | Accept the two values case-insensitively; reject all others. |
 | `--prob-size FLOAT` | Floating-point number | `1.40` | Must be finite and greater than zero. |
 | `--workers INTEGER` | Integer | `1` | Numba CPU thread count; must be greater than zero. |
 | `--preserve-het` | Boolean presence flag | `False` | Supplying the flag sets the value to `True`; it takes no argument. |
@@ -75,7 +75,7 @@ The parsed argument object must expose these attribute names and types:
 | Attribute | Type |
 | --- | --- |
 | `input` | `pathlib.Path` |
-| `mode` | `str` (`ALL`, `SIDE`, or `KEY`) |
+| `mode` | `str` (`ALL` or `SIDE`) |
 | `prob_size` | `float` |
 | `workers` | `int` |
 | `preserve_het` | `bool` |
@@ -126,7 +126,7 @@ requiring `INPUT`. Their help output must communicate all of the following,
 although exact whitespace and parser-generated punctuation may vary:
 
 ```text
-usage: prot-rsa [-h] [--mode {ALL,SIDE,KEY}] [--prob-size FLOAT]
+usage: prot-rsa [-h] [--mode {ALL,SIDE}] [--prob-size FLOAT]
                 [--workers INTEGER] [--preserve-het] [--use-h]
                 INPUT
 
@@ -138,7 +138,7 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  --mode {ALL,SIDE,KEY}
+  --mode {ALL,SIDE}
                         atom selection mode (default: ALL)
   --prob-size FLOAT     solvent probe radius in angstroms (default: 1.40)
   --workers INTEGER     number of Numba CPU threads (default: 1)
@@ -170,8 +170,7 @@ Argument and input-path errors must:
 - create no output files.
 
 Successful `--help` and a successful `ALL` atom calculation return status `0`.
-`SIDE` and `KEY` must fail clearly until their scientific selection rules are
-specified.
+`SIDE` must fail clearly until its scientific selection rules are specified.
 
 ## Required implementation tests
 
