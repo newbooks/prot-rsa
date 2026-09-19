@@ -16,6 +16,8 @@ Run the installed application with:
 
 ```bash
 prot-rsa structure.pdb
+# optionally choose a lower sampling resolution (minimum 122 points)
+prot-rsa structure.pdb --sphere-points 480
 ```
 
 Run `prot-rsa --help` to see the supported PDB/mmCIF input suffixes, calculation
@@ -87,14 +89,15 @@ The table below compares protein RSA calculation times under each
 optimization. Execution times are reported in seconds; lower values are
 better.
 
-| Optimization | Threads | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE vs `*.sas.baseline` (small / medium / large, Å²) |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Naive | 1 | 960 | 551 | 2185 | 11634 | 0.000 / 0.000 / 0.000 |
-| cKDTree | 1 | 960 | 19.490 | 40.644 | 86.590 | 0.000 / 0.000 / 0.000 |
-| Vectorized mask | 1 | 960 | 0.609 | 1.285 | 2.820 | 0.000 / 0.000 / 0.000 |
-| Occlusion-ordered neighbors | 1 | 960 | 0.319 | 0.630 | 1.620 | 0.000 / 0.000 / 0.000 |
-| Cache | 1 | 960 | 0.276 | 0.536 | 1.393 | 0.000 / 0.000 / 0.000 |
-| Numba CPU (1 thread) | 1 | 960 | 0.098 | 0.135 | 0.294 | 0.000 / 0.000 / 0.000 |
+| Optimization | Sphere points | Time (small) | Time (medium) | Time (large) | Atom-SASA MAE vs `*.sas.baseline` (small / medium / large, Å²) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Naive | 960 | 551 | 2185 | 11634 | 0.000 / 0.000 / 0.000 |
+| cKDTree | 960 | 19.490 | 40.644 | 86.590 | 0.000 / 0.000 / 0.000 |
+| Vectorized mask | 960 | 0.609 | 1.285 | 2.820 | 0.000 / 0.000 / 0.000 |
+| Occlusion-ordered neighbors | 960 | 0.319 | 0.630 | 1.620 | 0.000 / 0.000 / 0.000 |
+| Cache | 960 | 0.276 | 0.536 | 1.393 | 0.000 / 0.000 / 0.000 |
+| Numba CPU | 960 | 0.328 | 0.388 | 0.735 | 0.000 / 0.000 / 0.000 |
+| Reduced points | 480 | 0.358 | 0.382 | 0.494 | 0.164 / 0.145 / 0.184 |
 
 Benchmark structures are **small** — 1LYZ (129 residues); **medium** — 1CA2
 (256 residues); **large** — 1UOR (580 residues). Residue counts are the numbers
@@ -140,9 +143,19 @@ and 1.54129259e-7 Å² for 1LYZ, 1CA2, and 1UOR, respectively; maximum absolute
 errors were below 5.0e-7 Å² in all three cases. The Numba row reports total
 `atom_sasa_spatial()` time, including validation, CSR construction, burial-mask
 construction, and kernel execution. With the default one thread, the measured
-medians were approximately 0.098 s, 0.135 s, and 0.294 s, respectively.
+medians were approximately 0.328 s, 0.388 s, and 0.735 s, respectively.
 Four-thread execution remains available through `workers=4` for workloads
 where it provides a measured benefit.
+
+Reducing the sampling resolution from 960 to 480 points was also measured as
+wall-clock time on the same host (one untimed warm-up followed by five timed
+calls). The corresponding 960-point times were 0.030, 0.042, and 0.094 s for
+1LYZ, 1CA2, and 1UOR; the 480-point times were 0.023, 0.041, and 0.074 s,
+respectively. This is only a 1.27x speedup (approximately 21% less elapsed
+time), demonstrating that halving the sphere-point count does not materially
+reduce total wall-clock time because validation, neighbor construction, and
+other fixed costs dominate. Against the 960-point output, the 480-point atom
+SASA MAEs were 0.164, 0.145, and 0.184 Å² per atom, respectively.
 
 The complete-burial mask was benchmarked with the cached kernel using 960
 sphere points, one warm-up, and five measured calls. Dense synthetic cases

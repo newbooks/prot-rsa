@@ -23,6 +23,7 @@ from scipy.spatial import cKDTree
 DEFAULT_MODE = "ALL"
 DEFAULT_PROBE_SIZE = 1.40
 DEFAULT_SPHERE_POINTS = 960
+MIN_SPHERE_POINTS = 122
 DEFAULT_WORKERS = 1
 DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
@@ -1617,6 +1618,17 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _sphere_points_count(value: str) -> int:
+    """Parse a sphere-point count meeting the supported minimum resolution."""
+
+    parsed = _positive_int(value)
+    if parsed < MIN_SPHERE_POINTS:
+        raise argparse.ArgumentTypeError(
+            f"value must be at least {MIN_SPHERE_POINTS}"
+        )
+    return parsed
+
+
 def build_parser(*, prog: str | None = None) -> argparse.ArgumentParser:
     """Build and return the shared command-line argument parser."""
 
@@ -1665,6 +1677,16 @@ def build_parser(*, prog: str | None = None) -> argparse.ArgumentParser:
         default=DEFAULT_WORKERS,
         metavar="INTEGER",
         help=f"number of Numba CPU threads (default: {DEFAULT_WORKERS})",
+    )
+    parser.add_argument(
+        "--sphere-points",
+        type=_sphere_points_count,
+        default=DEFAULT_SPHERE_POINTS,
+        metavar="INTEGER",
+        help=(
+            "number of deterministic sphere samples "
+            f"(minimum {MIN_SPHERE_POINTS}; default: {DEFAULT_SPHERE_POINTS})"
+        ),
     )
     parser.add_argument(
         "--preserve-het",
@@ -1730,15 +1752,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             use_h=arguments.use_h,
             preserve_het=arguments.preserve_het,
         )
+        sphere_points = generate_sphere_points(arguments.sphere_points)
         atom_sasa = calculate_atom_sasa(
             atoms,
             probe_size=arguments.prob_size,
+            sphere_points=sphere_points,
             workers=arguments.workers,
         )
         residue_records = calculate_residue_sasa(
             atoms,
             atom_sasa,
             probe_size=arguments.prob_size,
+            sphere_points=sphere_points,
             workers=arguments.workers,
         )
     except (StructureReadError, ValueError) as error:

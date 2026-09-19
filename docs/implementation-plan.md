@@ -65,6 +65,9 @@ options:
   --mode {ALL,SIDE} Atom selection mode (default: ALL)
   --prob-size FLOAT     Solvent probe radius in angstroms (default: 1.40)
   --workers INTEGER     Number of Numba CPU threads (default: 1)
+  --sphere-points INTEGER
+                        Number of deterministic sphere samples (minimum 122;
+                        default: 960)
   --preserve-het        Preserve loose hetero-atoms (default: false)
   --use-h               Use hydrogen atoms supplied in the input file (default: false)
 ```
