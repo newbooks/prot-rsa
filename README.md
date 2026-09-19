@@ -21,16 +21,18 @@ prot-rsa structure.pdb
 Run `prot-rsa --help` to see the supported PDB/mmCIF input suffixes, calculation
 options, defaults, and derived output filenames.
 
-The initial atom-only implementation writes `<base>.atom.sas` as TSV and a
+The command writes `<base>.atom.sas` and `<base>.res.sas` as TSV files, plus a
 normalized `<base>.pqr` containing the selected radii and placeholder charge
 `0.000`. The production calculation uses cKDTree neighbor pruning; the
 deliberately naive serial implementation remains available as a correctness
 reference.
 
-Compare two generated atom-SASA files with:
+Compare two generated atom-SASA files with the separate comparison utility:
 
 ```bash
 prot-rsa-compare first.atom.sas second.atom.sas
+# or, from a source checkout:
+python compare_sas.py first.atom.sas second.atom.sas
 ```
 
 The comparison verifies every ordered atom-identity field and row before
@@ -50,6 +52,35 @@ import protrsa
 
 The distribution and command are named `prot-rsa`. The import name is
 `protrsa` because Python module names cannot contain hyphens.
+
+## Residue exposure (planned)
+
+Residue solvent-accessible surface area will be calculated by summing the
+already computed atom SASAs for each residue. The first relative-exposure mode
+will report **Contextual Exposure Fraction (CEF)** rather than conventional
+RSA:
+
+```text
+CEF = residue SASA in the complete protein
+      / SASA of the same residue conformation in isolation
+```
+
+The denominator is a naked-residue calculation using the same atoms, atomic
+radii, probe radius, sphere points, and `ALL` atom-selection rule, but without
+other residues present. CEF therefore represents the fraction of the residue's
+intrinsic, same-conformation surface that remains exposed in its protein
+context. It is distinct from conventional RSA, which normally uses a fixed
+residue-type reference or maximum ASA. `SIDE` and `KEY` selection modes are
+deferred.
+
+CEF is expected to lie in `[0, 1]` up to floating-point roundoff. The residue
+output format and public API are still under development.
+
+The first implementation computes one isolated-residue reference calculation
+per residue. After one warm-up, one-thread medians at 960 sphere points were
+0.090 s total for 1LYZ (129 residues), 0.118 s for 1CA2 (257 residues), and
+0.269 s for 1UOR (580 residues). The denominator portion accounted for 0.059,
+0.076, and 0.173 s respectively.
 
 ## Optimization Comparison
 

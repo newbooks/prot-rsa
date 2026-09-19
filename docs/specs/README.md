@@ -25,6 +25,8 @@ and future work remain in [`../implementation-plan.md`](../implementation-plan.m
   zero-area skipping while preserving the full atom/output index space.
 - [`cache.md`](cache.md): invariant squared-radius and coordinate-component
   reuse inside the NumPy kernel without changing its future Numba boundary.
+- [`residue-cef.md`](residue-cef.md): `ALL`-mode residue aggregation and
+  naked-residue Contextual Exposure Fraction (`.res.sas`) output.
 - [`atom-sasa-numba.md`](atom-sasa-numba.md): the planned lazy-compiled
   Numba CPU kernel, fallback behavior, threading constraints, and validation
   gates.

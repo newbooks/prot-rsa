@@ -41,7 +41,7 @@ Issues = "https://github.com/newbooks/prot-rsa/issues"
 
 [project.scripts]
 prot-rsa = "protrsa:main"
-prot-rsa-compare = "protrsa:compare_sas_main"
+prot-rsa-compare = "compare_sas:compare_sas_main"
 
 [tool.setuptools]
-py-modules = ["protrsa"]
+py-modules = ["protrsa", "compare_sas"]
