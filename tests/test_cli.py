@@ -21,7 +21,6 @@ def test_defaults(tmp_path: Path) -> None:
     arguments = protrsa.parse_args([str(input_path)])
 
     assert arguments.input == input_path
-    assert arguments.mode == protrsa.DEFAULT_MODE
     assert arguments.prob_size == protrsa.DEFAULT_PROBE_SIZE
     assert arguments.workers == protrsa.DEFAULT_WORKERS
     assert arguments.sphere_points == protrsa.DEFAULT_SPHERE_POINTS
@@ -54,29 +53,6 @@ def test_probe_default_and_help_derive_from_constant(
 
     assert parser.parse_args([str(input_path)]).prob_size == 1.25
     assert "default: 1.25" in parser.format_help()
-
-
-@pytest.mark.parametrize(
-    ("supplied", "expected"),
-    [("ALL", "ALL"), ("all", "ALL"), ("SiDe", "SIDE")],
-)
-def test_modes_are_case_insensitive(
-    tmp_path: Path, supplied: str, expected: str
-) -> None:
-    input_path = make_input(tmp_path)
-
-    arguments = protrsa.parse_args([str(input_path), "--mode", supplied])
-
-    assert arguments.mode == expected
-
-
-def test_unknown_mode_is_rejected(tmp_path: Path) -> None:
-    input_path = make_input(tmp_path)
-
-    with pytest.raises(SystemExit) as error:
-        protrsa.parse_args([str(input_path), "--mode", "backbone"])
-
-    assert error.value.code != 0
 
 
 @pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "-inf"])
@@ -251,7 +227,6 @@ def test_help_contains_required_contract() -> None:
         ".cif",
         ".pdb.gz",
         ".cif.gz",
-        "--mode {ALL,SIDE}",
         "--prob-size FLOAT",
         "--workers INTEGER",
         "--sphere-points INTEGER",
@@ -259,7 +234,6 @@ def test_help_contains_required_contract() -> None:
         "--use-h",
         "preserve loose hetero-atoms",
         "use hydrogen atoms supplied in the input file",
-        "default: ALL",
         "default: 1.40",
         "default: 1",
         "minimum 122",

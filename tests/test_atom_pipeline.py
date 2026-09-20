@@ -55,6 +55,18 @@ def test_blank_element_fallback_distinguishes_alpha_carbon_and_calcium() -> None
     assert [item.element for item in normalized] == ["C", "X"]
 
 
+@pytest.mark.parametrize("atom_name_raw", ["HG11", " HG1", " H1 ", "1HG1"])
+def test_blank_element_fallback_recognizes_current_and_legacy_hydrogen_names(
+    atom_name_raw: str,
+) -> None:
+    normalized = protrsa.normalize_atoms(
+        [atom("HG11", "", atom_name_raw=atom_name_raw)], use_h=True
+    )
+
+    assert normalized[0].element == "H"
+    assert normalized[0].radius == protrsa.EXPLICIT_ATOM_RADII["H"]
+
+
 def test_use_h_retains_hydrogen_and_uses_only_explicit_radii() -> None:
     normalized = protrsa.normalize_atoms(
         [atom("CA", "C"), atom("HA", "H", serial="2")], use_h=True
@@ -238,7 +250,7 @@ def test_cli_writes_atom_sasa_and_pqr_for_single_atom(
     assert residue_output.is_file()
     assert pqr_output.is_file()
     assert "sasa_A2" in atom_output.read_text(encoding="utf-8")
-    assert "sasa_inprotein" in residue_output.read_text(encoding="utf-8")
+    assert "sasa_all" in residue_output.read_text(encoding="utf-8")
     assert "0.000" in pqr_output.read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert captured.out == ""

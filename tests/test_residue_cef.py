@@ -82,9 +82,13 @@ def test_residue_cef_groups_atoms_and_preserves_first_seen_order() -> None:
         ("ALA", "1"),
         ("GLY", "2"),
     ]
-    assert records[0].sasa_inprotein < records[0].sasa_reference
-    assert 0.0 <= records[0].cef < 1.0
-    assert 0.0 <= records[1].cef < 1.0
+    assert records[0].sasa_all < records[0].sasa_all_ref
+    assert 0.0 <= records[0].sasa_all_ratio < 1.0
+    assert 0.0 <= records[1].sasa_all_ratio < 1.0
+    assert records[0].sasa_side is not None
+    assert records[1].sasa_side is None
+    assert records[1].sasa_side_ref is None
+    assert records[1].sasa_side_ratio is None
 
 
 def test_residue_cef_writer_uses_required_schema_and_three_decimals(
@@ -97,9 +101,12 @@ def test_residue_cef_writer_uses_required_schema_and_three_decimals(
             chain_id="A",
             residue_sequence="7",
             insertion_code="B",
-            sasa_inprotein=12.3456,
-            sasa_reference=23.4567,
-            cef=0.52501,
+            sasa_all=12.3456,
+            sasa_all_ref=23.4567,
+            sasa_all_ratio=0.52501,
+            sasa_side=5.4321,
+            sasa_side_ref=9.8765,
+            sasa_side_ratio=0.55001,
         )
     ]
 
@@ -107,8 +114,9 @@ def test_residue_cef_writer_uses_required_schema_and_three_decimals(
 
     assert output_path.read_text(encoding="utf-8") == (
         "residue_name\tchain_id\tresidue_sequence\tinsertion_code\t"
-        "sasa_inprotein\tsasa_reference\tcef\n"
-        "ALA\tA\t7\tB\t12.346\t23.457\t0.525\n"
+        "sasa_all\tsasa_all_ref\tsasa_all_ratio\t"
+        "sasa_side\tsasa_side_ref\tsasa_side_ratio\n"
+        "ALA\tA\t7\tB\t12.346\t23.457\t0.525\t5.432\t9.877\t0.550\n"
     )
 
 
@@ -143,5 +151,7 @@ def test_residue_cef_keeps_same_residue_occlusion_in_reference() -> None:
     )
 
     assert len(records) == 1
-    assert records[0].sasa_inprotein == records[0].sasa_reference
-    assert records[0].cef == 1.0
+    assert records[0].sasa_all == records[0].sasa_all_ref
+    assert records[0].sasa_all_ratio == 1.0
+    assert records[0].sasa_side < records[0].sasa_side_ref
+    assert records[0].sasa_side_ratio == 0.5

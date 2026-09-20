@@ -79,11 +79,14 @@ selected table use `X` and `UNKNOWN_RADIUS = 2.00` Å. The program does not add
 hydrogens.
 
 Element-based radius lookup uses the explicit element field first. If it is
-missing, infer the element from the first two characters of the retained
-four-character atom-name field after stripping spaces (and an optional leading
-digit used by hydrogen names). Thus PDB `" CA "` falls back to carbon `C`,
-whereas `"CA  "` falls back to calcium `CA`; stripping the display atom name
-must not erase this distinction.
+missing, apply the hydrogen-name rule before ordinary PDB alignment inference:
+an atom name beginning with `H` is hydrogen, and a legacy name beginning with a
+digit followed by `H` is also hydrogen. Thus `HG11`, `HG1`, `H1`, and `1HG1`
+all infer `H`. Otherwise infer from the first two characters of the retained
+four-character atom-name field after stripping spaces and an optional leading
+digit. Thus PDB `" CA "` falls back to carbon `C`, whereas `"CA  "` falls
+back to calcium `CA`; stripping the display atom name must not erase this
+distinction.
 
 For the initial ProtOr mapping, every nitrogen atom uses `N`, including
 nitrogen in nonstandard residues and retained `HETATM` components. Sulfur,
@@ -104,8 +107,8 @@ The normalized internal record must retain the source atom metadata and add
 the normalized element and assigned radius. Its coordinates and radii are
 passed, in the same order, to `atom_sasa_reference()`.
 
-The initial atom-only CLI supports `--mode ALL`; it must reject `SIDE` clearly
-until its atom-selection rules are specified. It writes:
+The CLI does not select an atom or residue mode. The residue report computes
+both ALL and SIDE metrics according to `residue-cef.md`. It writes:
 
 - `<base>.atom.sas`, a TSV with atom index, source record type and identifier,
   atom and residue identifiers, normalized element, radius in Å, and absolute
@@ -259,7 +262,7 @@ performed before this case is handled.
 
 Atom filtering and radius assignment happen before this numerical function.
 The function must not interpret elements, atom names, residue names,
-`--use-h`, `--preserve-het`, or `--mode`.
+`--use-h` or `--preserve-het`.
 
 ## Shrake–Rupley calculation
 

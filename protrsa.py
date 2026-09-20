@@ -20,7 +20,6 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
-DEFAULT_MODE = "ALL"
 DEFAULT_PROBE_SIZE = 1.40
 DEFAULT_SPHERE_POINTS = 960
 MIN_SPHERE_POINTS = 122
@@ -28,7 +27,6 @@ DEFAULT_WORKERS = 1
 DEFAULT_PRESERVE_HET = False
 DEFAULT_USE_H = False
 DEFAULT_BACKEND = "auto"
-MODES = ("ALL", "SIDE")
 SUPPORTED_INPUT_SUFFIXES = (".pdb", ".cif", ".pdb.gz", ".cif.gz")
 ATOM_SASA_COLUMNS = (
     "atom_index",
@@ -49,10 +47,14 @@ RESIDUE_CEF_COLUMNS = (
     "chain_id",
     "residue_sequence",
     "insertion_code",
-    "sasa_inprotein",
-    "sasa_reference",
-    "cef",
+    "sasa_all",
+    "sasa_all_ref",
+    "sasa_all_ratio",
+    "sasa_side",
+    "sasa_side_ref",
+    "sasa_side_ratio",
 )
+BACKBONE_ATOM_NAMES = frozenset({"N", "CA", "C", "O", "OXT"})
 
 
 def _validate_workers(workers: int) -> int:
@@ -208,9 +210,12 @@ class ResidueCefRecord:
     chain_id: str
     residue_sequence: str
     insertion_code: str
-    sasa_inprotein: float
-    sasa_reference: float
-    cef: float
+    sasa_all: float
+    sasa_all_ref: float
+    sasa_all_ratio: float
+    sasa_side: float | None
+    sasa_side_ref: float | None
+    sasa_side_ratio: float | None
 
 
 STANDARD_AMINO_ACIDS = frozenset(
@@ -582,6 +587,13 @@ def _normalized_element(atom: AtomRecord) -> str:
     if atom.element:
         return atom.element.upper()
     atom_name_field = atom.atom_name_raw or atom.atom_name
+    stripped_name = atom_name_field.strip().upper()
+    if stripped_name.startswith("H") or (
+        len(stripped_name) >= 2
+        and stripped_name[0].isdigit()
+        and stripped_name[1] == "H"
+    ):
+        return "H"
     inferred = atom_name_field[:2].strip().upper().lstrip("0123456789")
     return inferred or "X"
 
@@ -704,7 +716,7 @@ def calculate_residue_sasa(
     backend: str = DEFAULT_BACKEND,
     workers: int = DEFAULT_WORKERS,
 ) -> list[ResidueCefRecord]:
-    """Aggregate atom SASA and calculate naked-residue CEF values."""
+    """Aggregate atom SASA and calculate ALL and SIDE CEF values."""
 
     if len(atoms) != len(atom_sasa):
         raise ValueError("atoms and atom_sasa must have the same length")
@@ -728,47 +740,68 @@ def calculate_residue_sasa(
 
     records: list[ResidueCefRecord] = []
     for key, indices in residue_indices.items():
-        coordinates = np.asarray(
-            [
-                (
-                    atoms[index].source.x,
-                    atoms[index].source.y,
-                    atoms[index].source.z,
-                )
-                for index in indices
-            ],
-            dtype=np.float64,
-        )
-        radii = np.asarray([atoms[index].radius for index in indices], dtype=np.float64)
-        reference_atom_sasa = atom_sasa_spatial(
-            coordinates,
-            radii,
-            probe_size=probe_size,
-            sphere_points=points,
-            backend=backend,
-            workers=workers,
-        )
-        sasa_inprotein = float(np.sum(atom_sasa_array[indices], dtype=np.float64))
-        sasa_reference = float(np.sum(reference_atom_sasa, dtype=np.float64))
-        if not math.isfinite(sasa_reference) or sasa_reference <= 0.0:
-            raise ValueError(
-                "residue reference SASA must be finite and greater than zero"
+        side_indices = [
+            index
+            for index in indices
+            if atoms[index].source.atom_name.strip().upper()
+            not in BACKBONE_ATOM_NAMES
+        ]
+
+        def subset_values(subset: list[int]) -> tuple[float, float, float]:
+            coordinates = np.asarray(
+                [
+                    (
+                        atoms[index].source.x,
+                        atoms[index].source.y,
+                        atoms[index].source.z,
+                    )
+                    for index in subset
+                ],
+                dtype=np.float64,
             )
-        if sasa_inprotein < -1e-12 or sasa_inprotein > sasa_reference + 1e-12:
-            raise ValueError("residue in-protein SASA exceeds its reference SASA")
-        cef = sasa_inprotein / sasa_reference
-        if cef < -1e-12 or cef > 1.0 + 1e-12:
-            raise ValueError("residue CEF is outside the allowed [0, 1] range")
-        cef = min(1.0, max(0.0, cef))
+            radii = np.asarray([atoms[index].radius for index in subset], dtype=np.float64)
+            reference_atom_sasa = atom_sasa_spatial(
+                coordinates,
+                radii,
+                probe_size=probe_size,
+                sphere_points=points,
+                backend=backend,
+                workers=workers,
+            )
+            sasa_inprotein = float(np.sum(atom_sasa_array[subset], dtype=np.float64))
+            sasa_reference = float(np.sum(reference_atom_sasa, dtype=np.float64))
+            if not math.isfinite(sasa_reference) or sasa_reference <= 0.0:
+                raise ValueError(
+                    "residue reference SASA must be finite and greater than zero"
+                )
+            if sasa_inprotein < -1e-12 or sasa_inprotein > sasa_reference + 1e-12:
+                raise ValueError("residue in-protein SASA exceeds its reference SASA")
+            cef = sasa_inprotein / sasa_reference
+            if cef < -1e-12 or cef > 1.0 + 1e-12:
+                raise ValueError("residue CEF is outside the allowed [0, 1] range")
+            return (
+                sasa_inprotein,
+                sasa_reference,
+                min(1.0, max(0.0, cef)),
+            )
+
+        sasa_all, sasa_all_ref, sasa_all_ratio = subset_values(indices)
+        if side_indices:
+            sasa_side, sasa_side_ref, sasa_side_ratio = subset_values(side_indices)
+        else:
+            sasa_side = sasa_side_ref = sasa_side_ratio = None
         records.append(
             ResidueCefRecord(
                 residue_name=key[0],
                 chain_id=key[1],
                 residue_sequence=key[2],
                 insertion_code=key[3],
-                sasa_inprotein=sasa_inprotein,
-                sasa_reference=sasa_reference,
-                cef=cef,
+                sasa_all=sasa_all,
+                sasa_all_ref=sasa_all_ref,
+                sasa_all_ratio=sasa_all_ratio,
+                sasa_side=sasa_side,
+                sasa_side_ref=sasa_side_ref,
+                sasa_side_ratio=sasa_side_ratio,
             )
         )
     return records
@@ -836,15 +869,21 @@ def write_residue_cef_tsv(
     output_path: str | Path,
     records: Sequence[ResidueCefRecord],
 ) -> None:
-    """Write residue SASA and CEF values as a three-decimal TSV."""
+    """Write dual residue SASA and CEF values as a three-decimal TSV."""
+
+    def format_value(value: float | None) -> str:
+        return "NA" if value is None else f"{value:.3f}"
 
     lines = ["\t".join(RESIDUE_CEF_COLUMNS) + "\n"]
     for record in records:
         lines.append(
             f"{record.residue_name}\t{record.chain_id}\t"
             f"{record.residue_sequence}\t{record.insertion_code}\t"
-            f"{record.sasa_inprotein:.3f}\t{record.sasa_reference:.3f}\t"
-            f"{record.cef:.3f}\n"
+            f"{record.sasa_all:.3f}\t{record.sasa_all_ref:.3f}\t"
+            f"{record.sasa_all_ratio:.3f}\t"
+            f"{format_value(record.sasa_side)}\t"
+            f"{format_value(record.sasa_side_ref)}\t"
+            f"{format_value(record.sasa_side_ratio)}\n"
         )
     _write_new_text(output_path, "".join(lines))
 
@@ -1655,13 +1694,6 @@ def build_parser(*, prog: str | None = None) -> argparse.ArgumentParser:
         help="PDB or mmCIF input file; .pdb, .cif, .pdb.gz, and .cif.gz are supported",
     )
     parser.add_argument(
-        "--mode",
-        type=str.upper,
-        choices=MODES,
-        default=DEFAULT_MODE,
-        help=f"atom selection mode (default: {DEFAULT_MODE})",
-    )
-    parser.add_argument(
         "--prob-size",
         type=_positive_finite_float,
         default=DEFAULT_PROBE_SIZE,
@@ -1741,8 +1773,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     start_time = time.perf_counter()
     parser = build_parser()
     arguments = parser.parse_args(argv)
-    if arguments.mode != "ALL":
-        parser.error("SIDE atom-selection mode is not implemented yet")
     atom_output, residue_output = derive_output_paths(arguments.input)
     pqr_output = derive_pqr_path(arguments.input)
     try:
