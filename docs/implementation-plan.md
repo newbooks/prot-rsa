@@ -10,7 +10,7 @@ The implementation will start from the previous PyMCCE SASA code while correctin
 
 ```bash
 python protrsa.py structure.pdb
-prot-rsa structure.cif.gz --mode SIDE --prob-size 1.40 --workers 4
+prot-rsa structure.cif.gz --prob-size 1.40 --workers 4
 prot-rsa-compare first.atom.sas second.atom.sas
 ```
 
@@ -62,7 +62,6 @@ positional arguments:
   INPUT                 PDB or mmCIF structure (.pdb, .cif, .pdb.gz, or .cif.gz)
 
 options:
-  --mode {ALL,SIDE} Atom selection mode (default: ALL)
   --prob-size FLOAT     Solvent probe radius in angstroms (default: 1.40)
   --workers INTEGER     Number of Numba CPU threads (default: 1)
   --sphere-points INTEGER
@@ -73,14 +72,14 @@ options:
 ```
 
 `--preserve-het` and `--use-h` are presence flags: omitting either flag keeps
-its value false, while supplying it sets the value to true. `--mode` values
-should be accepted case-insensitively and normalized to uppercase. The CLI
-must reject a nonpositive probe size or worker count with a clear error.
+its value false, while supplying it sets the value to true. The CLI must reject
+a nonpositive probe size, worker count, or sphere-point count below the
+documented minimum with a clear error.
 
-The precise atom-selection rules for `SIDE`, and the definition of a "loose
-hetero atom," remain scientific contract decisions. They must be specified and
-tested before `SIDE` is implemented; the parser must not silently invent those
-rules.
+The precise atom-selection rules for residue `SIDE` exposure are defined in
+[`specs/residue-cef.md`](specs/residue-cef.md), including the canonical
+backbone atom set and unresolved policies for empty side chains and explicit
+hydrogens. The parser must not silently invent different rules.
 
 ### Output files
 
@@ -150,13 +149,11 @@ CEF[i] = SASA[i] in the complete protein
          / SASA[i] for the same residue conformation in isolation
 ```
 
-The naked-residue denominator uses exactly the same residue atoms, selected
-atomic radii, probe radius, sphere points, and `ALL` atom-selection rule as the
-numerator, but removes all other residues. It therefore normalizes out
-self-shielding caused by the residue's own conformation and measures the
-fraction of its intrinsic surface retained in the complete protein. The
-denominator is computed per residue instance, so terminal residues require no
-special reference treatment. `SIDE` mode is deferred.
+The naked-residue denominators use exactly the same selected atom subsets,
+atomic radii, probe radius, and sphere points as their corresponding
+numerators, but remove all other residues. Both ALL and SIDE metrics are
+reported for every residue; the complete contract is defined in
+[`specs/residue-cef.md`](specs/residue-cef.md).
 
 CEF should be bounded in `[0, 1]` within floating-point roundoff. The
 implementation must not silently substitute a residue-type maximum-ASA table;
@@ -288,8 +285,8 @@ Benchmark four-process execution against a four-thread Numba `prange` kernel. Th
 Keep parsing separate from numerical calculation. The parser will produce coordinates, elements, radii, atom identifiers, residue identifiers, chain identifiers, and model/alternate-location information.
 
 Support PDB and mmCIF input, including gzip-compressed `.pdb.gz` and `.cif.gz`
-files, according to the basic input contract. Apply `--mode`, `--preserve-het`,
-and `--use-h` consistently after parsing and before numerical calculation.
+files, according to the basic input contract. Apply `--preserve-het` and
+`--use-h` consistently after parsing and before numerical calculation.
 Unknown elements and ambiguous records will produce explicit errors or
 documented warnings rather than silent guesses.
 
@@ -299,14 +296,14 @@ Required commands:
 
 ```bash
 prot-rsa input.pdb
-prot-rsa input.cif.gz --mode SIDE --prob-size 1.40 --workers 4
+prot-rsa input.cif.gz --prob-size 1.40 --workers 4
 prot-rsa input.pdb --preserve-het --use-h
 ```
 
-Implement the positional input and five options exactly as defined in the basic
-program setup. A successful run writes the derived `.atom.sas` and `.res.sas`
-files. Errors go to standard error, and invalid input or calculation failure
-returns a nonzero exit status.
+Implement the positional input and options exactly as defined in the command-
+line specification. A successful run writes the derived `.atom.sas` and
+`.res.sas` files. Errors go to standard error, and invalid input or calculation
+failure returns a nonzero exit status.
 
 ## Phase 10: Test and validate
 
@@ -357,7 +354,8 @@ Every new function will receive focused `pytest` coverage, and tests will run be
 - PDB and mmCIF inputs produce both expected output files.
 - `.pdb.gz` and `.cif.gz` inputs use the correct output basename.
 - Each CLI default and presence flag behaves according to the input contract.
-- Invalid modes, extensions, probe sizes, and worker counts are rejected.
+- Invalid extensions, probe sizes, worker counts, and sphere-point counts are
+  rejected.
 - Failed runs do not leave only one output file or partial output files.
 - CLI failures return appropriate exit codes.
 - Source and wheel distributions include `protrsa.py`, `README.md`, and `LICENSE`.

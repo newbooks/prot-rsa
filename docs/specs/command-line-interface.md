@@ -60,7 +60,6 @@ error, not an argument-parser responsibility.
 
 | Option | Parsed value | Default | Requirements |
 | --- | --- | --- | --- |
-| `--mode {ALL,SIDE}` | String normalized to uppercase | `ALL` | Accept the two values case-insensitively; reject all others. |
 | `--prob-size FLOAT` | Floating-point number | `1.40` | Must be finite and greater than zero. |
 | `--workers INTEGER` | Integer | `1` | Numba CPU thread count; must be greater than zero. |
 | `--sphere-points INTEGER` | Integer | `960` | Deterministic sphere sample count; must be at least `122`. |
@@ -76,7 +75,6 @@ The parsed argument object must expose these attribute names and types:
 | Attribute | Type |
 | --- | --- |
 | `input` | `pathlib.Path` |
-| `mode` | `str` (`ALL` or `SIDE`) |
 | `prob_size` | `float` |
 | `workers` | `int` |
 | `sphere_points` | `int` |
@@ -128,7 +126,7 @@ requiring `INPUT`. Their help output must communicate all of the following,
 although exact whitespace and parser-generated punctuation may vary:
 
 ```text
-usage: prot-rsa [-h] [--mode {ALL,SIDE}] [--prob-size FLOAT]
+usage: prot-rsa [-h] [--prob-size FLOAT]
                 [--workers INTEGER] [--sphere-points INTEGER]
                 [--preserve-het] [--use-h]
                 INPUT
@@ -141,8 +139,6 @@ positional arguments:
 
 options:
   -h, --help            show this help message and exit
-  --mode {ALL,SIDE}
-                        atom selection mode (default: ALL)
   --prob-size FLOAT     solvent probe radius in angstroms (default: 1.40)
   --workers INTEGER     number of Numba CPU threads (default: 1)
   --sphere-points INTEGER
@@ -175,8 +171,7 @@ Argument and input-path errors must:
 - return a nonzero exit status; and
 - create no output files.
 
-Successful `--help` and a successful `ALL` atom calculation return status `0`.
-`SIDE` must fail clearly until its scientific selection rules are specified.
+Successful `--help` and atom calculations return status `0`.
 
 ## Required implementation tests
 
@@ -184,13 +179,11 @@ Add focused `pytest` tests for reusable functions and use a subprocess or the
 chosen parser library's test mechanism for CLI behavior. At minimum, test:
 
 1. Every documented default.
-2. Each valid `--mode` spelling in uppercase and lowercase.
-3. Rejection of an unknown mode.
-4. Rejection of zero, negative, infinite, and NaN probe sizes.
-5. Rejection of zero and negative worker counts.
-6. Both Boolean flags independently and together.
-7. Every supported uncompressed and compressed suffix, including uppercase.
-8. Rejection of unsupported and incomplete suffixes such as `.txt`, `.gz`,
+2. Rejection of zero, negative, infinite, and NaN probe sizes.
+3. Rejection of zero and negative worker counts.
+4. Both Boolean flags independently and together.
+5. Every supported uncompressed and compressed suffix, including uppercase.
+6. Rejection of unsupported and incomplete suffixes such as `.txt`, `.gz`,
    and `.mmcif`.
 9. Output derivation for relative paths, absolute paths, and bases containing
    multiple dots.

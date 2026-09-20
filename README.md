@@ -58,21 +58,25 @@ The distribution and command are named `prot-rsa`. The import name is
 ## Residue exposure (planned)
 
 Residue solvent-accessible surface area will be calculated by summing the
-already computed atom SASAs for each residue. The first relative-exposure mode
-will report **Contextual Exposure Fraction (CEF)** rather than conventional
-RSA:
+already computed atom SASAs for each residue. The residue report will contain
+both complete-residue (`ALL`) and side-chain (`SIDE`) **Contextual Exposure
+Fraction (CEF)** values rather than conventional RSA:
 
 ```text
-CEF = residue SASA in the complete protein
-      / SASA of the same residue conformation in isolation
+CEF = selected-atom SASA in the complete protein
+      / SASA of the same selected residue conformation in isolation
 ```
 
-The denominator is a naked-residue calculation using the same atoms, atomic
-radii, probe radius, sphere points, and `ALL` atom-selection rule, but without
-other residues present. CEF therefore represents the fraction of the residue's
-intrinsic, same-conformation surface that remains exposed in its protein
-context. It is distinct from conventional RSA, which normally uses a fixed
-residue-type reference or maximum ASA. `SIDE` selection mode is deferred.
+The denominator is a naked-residue calculation using the same selected atoms,
+atomic radii, probe radius, and sphere points, but without other residues
+present. The output columns are `sasa_all`, `sasa_all_ref`, `sasa_all_ratio`,
+`sasa_side`, `sasa_side_ref`, and `sasa_side_ratio`. CEF therefore represents
+the fraction of the selected residue surface retained in its protein context.
+It is distinct from conventional RSA, which normally uses a fixed residue-type
+reference or maximum ASA.
+
+Residues without retained side-chain atoms, such as glycine under the
+canonical backbone definition, use `NA` for the three SIDE fields.
 
 CEF is expected to lie in `[0, 1]` up to floating-point roundoff. The residue
 output format and public API are still under development.

@@ -1,210 +1,197 @@
-# Residue SASA and Contextual Exposure Fraction
+# Residue SASA and Dual Contextual Exposure Fractions
 
-**Status:** Implemented
+**Status:** Ready for implementation.
 
 ## Purpose and scope
 
-Add the first residue-level report on top of the validated atom-SASA
-calculation. The report aggregates atom SASAs in the complete protein and
-normalizes each residue by the SASA of that same residue conformation when
-calculated in isolation. The normalized value is named **Contextual Exposure
-Fraction (CEF)**. It is intentionally distinct from conventional RSA, which
-normally uses a residue-type reference or maximum ASA.
+Produce one residue-level report containing contextual exposure for both the
+complete residue (`ALL`) and its side-chain atom subset (`SIDE`). Both values
+use the observed residue conformation as the reference, rather than a fixed
+residue-type or maximum-ASA table.
 
-This stage supports only `ALL` atom-selection mode. `SIDE` is deferred and
-must remain rejected by the CLI until its separate scientific contract is
-specified.
-
-For residue `i`:
+For residue `r` and atom subsets `A_ALL(r)` and `A_SIDE(r)`:
 
 ```text
-sasa_inprotein[i] = sum(atom_sasa[a] for atoms a in residue i,
-                        calculated in the complete structure)
-sasa_reference[i] = sum(atom_sasa[a] for atoms a in residue i,
-                        calculated with only residue i present)
-cef[i]            = sasa_inprotein[i] / sasa_reference[i]
+sasa_all[r]       = sum(protein_atom_sasa[a] for a in A_ALL(r))
+sasa_all_ref[r]   = SASA of A_ALL(r) when residue r is isolated
+sasa_all_ratio[r] = sasa_all[r] / sasa_all_ref[r]
+
+sasa_side[r]       = sum(protein_atom_sasa[a] for a in A_SIDE(r))
+sasa_side_ref[r]   = SASA of A_SIDE(r) when the side-chain subset is isolated
+sasa_side_ratio[r] = sasa_side[r] / sasa_side_ref[r]
 ```
 
-The naked-residue calculation retains the residue's observed coordinates,
-selected atoms, radii, and conformation. It removes every atom belonging to a
-different residue. Atoms within the residue remain occluders of one another,
-so the denominator includes self-shielding caused by the residue's own
-conformation. Terminal residues require no special reference treatment.
+The protein numerator is calculated in the complete normalized structure. Each
+reference calculation contains only the selected subset from the target
+residue; atoms from other residues and atoms excluded from that subset are
+not present as occluders. This makes the ALL and SIDE denominators consistent
+with their respective numerators and measures exposure relative to the same
+conformation without surrounding residues.
 
-This stage does not define conventional maximum-ASA tables, residue-type
-reference values, side-chain-only exposure, atom-subset exposure, or residue
-classification thresholds.
+The existing atom-SASA report remains unchanged. This specification changes
+only the residue report and removes the need for a CLI `ALL`/`SIDE` selection
+for residue output: both metrics are emitted in every successful run.
+
+## Atom subsets
+
+`A_ALL(r)` contains every normalized atom belonging to residue `r`, subject to
+the existing hydrogen and hetero-atom options.
+
+`A_SIDE(r)` contains the normalized atoms in `A_ALL(r)` whose atom names are
+not in the canonical backbone set:
+
+```text
+N, CA, C, O, OXT
+```
+
+Names are compared after the existing atom-name normalization. `OXT` is
+classified as backbone so terminal residues receive the same treatment as
+internal residues. No inferred atoms, residue templates, bond perception, or
+alternate-location data may be introduced at this stage.
+
+The implementation must preserve the existing normalization behavior:
+
+- `--use-h` controls whether explicit hydrogen records are retained;
+- radius assignment uses the existing ProtOr/explicit tables;
+- loose hetero-component filtering uses `--preserve-het`; and
+- the same probe radius, sphere points, backend, and worker settings are used
+  for protein and reference calculations.
 
 ## Output file and schema
 
-Every successful structure calculation writes a residue TSV alongside the atom
-TSV. The existing output-path derivation is authoritative:
+The existing output path rules remain authoritative:
 
 ```text
-1LYZ.pdb       -> 1LYZ.res.sas
-1LYZ.cif.gz    -> 1LYZ.res.sas
+1LYZ.pdb    -> 1LYZ.res.sas
+1LYZ.cif.gz -> 1LYZ.res.sas
 ```
 
-The file must contain exactly these columns in this order:
+The file must contain exactly these columns, in this order:
 
 ```text
 residue_name
 chain_id
 residue_sequence
 insertion_code
-sasa_inprotein
-sasa_reference
-cef
+sasa_all
+sasa_all_ref
+sasa_all_ratio
+sasa_side
+sasa_side_ref
+sasa_side_ratio
 ```
 
-The first four fields are text copied from the normalized source atom record.
-Blank chain and insertion identifiers remain blank. `residue_sequence` remains
-a string; do not convert it to an integer because mmCIF identifiers and
-future input formats may not be numeric.
-
-`sasa_inprotein` and `sasa_reference` are absolute areas in Å². `cef` is a
-dimensionless ratio. Numeric values must be serialized with three digits after
-the decimal point. The file is UTF-8
-TSV with one header row and a trailing newline. Rows are written in the order
-of the first atom encountered for each residue.
-
-The residue identity key is the four-tuple:
+The first four fields are copied from the first normalized atom for each
+residue. The residue identity key remains:
 
 ```text
 (residue_name, chain_id, residue_sequence, insertion_code)
 ```
 
-All normalized atoms with the same key belong to one output row, even if the
-records are not contiguous in the input. Alternate-location resolution and
-model rejection occur before grouping, using the existing structure-reader
-contract. A residue key must not occur twice as separate output rows.
-
-## Atom-selection and normalization rules
-
-The residue report consumes the same normalized atoms used for atom SASA:
-
-- `ALL` is the only supported mode;
-- hydrogen inclusion follows `--use-h`;
-- radius assignment follows the selected ProtOr or explicit radius table;
-- loose hetero-component filtering follows `--preserve-het`; and
-- the same probe radius and sphere-point set are used for both SASA values.
-
-The numerator and denominator must use identical atom membership for the
-residue. An atom omitted by normalization cannot contribute to either value.
-The implementation must not infer missing atoms, add hydrogens, or substitute
-a residue-type reference table.
+Rows are emitted in first-seen residue order. Sequence identifiers remain
+strings, including nonnumeric mmCIF identifiers. The file is UTF-8 TSV with a
+header and trailing newline. Numeric values are formatted with exactly three
+digits after the decimal point; intermediate values are never rounded. For
+residues without retained SIDE atoms, the three SIDE fields contain the
+literal `NA`.
 
 ## Calculation algorithm
 
-1. Parse the structure and resolve models and alternate locations according to
-   the existing input contract.
-2. Normalize and filter atoms using `ALL` mode.
-3. Calculate atom SASA once in complete-structure context using the selected
-   production backend. Preserve the existing atom order and atom-level output.
-4. Group normalized atom indices by the residue identity key while preserving
-   first-seen residue order.
-5. For each residue, create an isolated view containing only that residue's
-   coordinates and radii. Calculate atom SASA with the same probe and sphere
-   points, with no atoms from other residues available as occluders.
-6. Sum the complete-structure atom SASAs into `sasa_inprotein` and the isolated
-   atom SASAs into `sasa_reference`.
-7. Compute `cef = sasa_inprotein / sasa_reference`.
-8. Serialize one row per residue to `<base>.res.sas` only after all parsing and
-   calculations succeed.
+1. Read the structure and resolve models/alternate locations using the
+   existing input contract.
+2. Normalize atoms once and calculate complete-structure atom SASA once.
+3. Group normalized atom indices by the four-field residue key while
+   preserving first-seen order.
+4. For each residue, construct an ALL coordinate/radius view and a SIDE view
+   by filtering out canonical backbone atom names.
+5. Calculate the isolated ALL reference SASA using only the ALL view.
+6. Calculate the isolated SIDE reference SASA using only the SIDE view.
+7. Sum complete-structure atom SASAs over the ALL and SIDE index sets.
+8. Compute both ratios and validate their numerical bounds.
+9. Write one row containing both metric triplets only after all calculations
+   succeed. A failure must not leave a partial residue file.
 
-The first implementation may call the existing validated spatial function for
-each isolated residue. It must not call the public parser or write temporary
-files for individual residues. A later batched or compiled denominator kernel
-may replace this implementation without changing the TSV contract.
-
-The isolated calculation must use the same numerical backend requested for the
-complete structure, or a documented backend-equivalence path with the same
-scientific boundary rule. Backend selection must not silently change the
-definition of CEF.
+The first implementation may call the existing validated spatial function once
+per reference view. It must not invoke the CLI parser or write temporary files.
+The same validated sphere-point array must be passed to all reference calls.
 
 ## Numerical behavior
 
-With identical residue atoms and arithmetic, the complete-structure exposed
-surface cannot exceed the isolated exposed surface. Require:
+For each nonempty subset, require:
 
 ```text
-0 <= sasa_inprotein <= sasa_reference
-0 <= cef <= 1
+0 <= sasa_all <= sasa_all_ref
+0 <= sasa_side <= sasa_side_ref
+0 <= sasa_all_ratio <= 1
+0 <= sasa_side_ratio <= 1
 ```
 
-Allow only floating-point roundoff at the bounds. If the computed CEF is within
-`1e-12` below zero or above one, clamp that value to the corresponding bound
-for serialization. A larger violation must raise a clear numerical error
-rather than silently producing an invalid report. A nonpositive
-`sasa_reference` is invalid for a normalized residue report and must raise a
-clear error.
-
-Do not round intermediate atom areas, residue sums, or ratios. Apply three-place
-formatting only while writing the TSV. Repeated runs with identical normalized
-inputs and parameters must produce identical residue rows and values.
+Allow `1e-12` floating-point slack at the bounds and clamp values within that
+slack before serialization. Larger violations, nonfinite values, or a
+nonpositive reference area must raise a clear error. Ratios must be computed
+from unrounded sums.
 
 ## Public API and CLI
 
-The existing atom-level public functions retain their signatures and behavior.
-Add residue reporting through the planned residue API and CLI output path; do
-not overload atom-SASA arrays with residue values. The reusable residue API
-must accept normalized array data plus residue identity fields, probe settings,
-sphere points, backend, and worker controls without reading files or writing
-outputs.
+The reusable residue calculation API should return a record containing the
+four identity fields and six numeric values above. Existing atom-level APIs
+retain their signatures and behavior.
 
-The CLI must:
-
-- continue to derive `.res.sas` from the input path using the existing rules;
-- write the residue report in the same successful run as `.atom.sas`;
-- reject `SIDE` with the existing not-implemented error; and
-- leave no partial residue file if parsing or either SASA calculation fails.
+The CLI continues to write `.atom.sas`, `.res.sas`, and `.pqr` in one run. The
+residue file always contains both ALL and SIDE columns. There is no CLI mode
+switch for selecting residue columns.
 
 ## Required tests
 
-Add focused `pytest` coverage for:
+Add focused tests for:
 
-1. Exact header, column order, three-place numeric formatting, and output naming
-   for `.pdb`, `.cif`, and compressed inputs.
-2. Grouping by the complete four-field residue key, including insertion codes,
-   blank chain identifiers, nonnumeric sequence identifiers, and noncontiguous
-   records.
-3. Atom aggregation in complete-structure context with multiple residues.
-4. An isolated single-atom residue, where `sasa_reference` equals the exposed
-   area of that atom without other residues.
-5. Internal same-residue occlusion being retained in the denominator.
-6. Terminal residues producing ordinary rows without special handling.
-7. A fully exposed residue with `cef == 1` within floating-point tolerance and
-   a partially occluded residue with `0 <= cef < 1`.
-8. The same result under serial and supported compiled backends within the
-   repository's established numerical contract.
-9. `ALL` mode atom filtering, hydrogen handling, hetero filtering, and input
-   nonmutation matching atom-SASA behavior.
-10. Failure on zero reference area or materially invalid CEF bounds without a
-    partial output file.
-11. Repeated calculation determinism and preservation of atom-output results.
+1. Exact ten-column header, ordering, formatting, and output naming.
+2. ALL aggregation and SIDE aggregation on a residue containing backbone and
+   side-chain atoms.
+3. Backbone exclusion for `N`, `CA`, `C`, `O`, and terminal `OXT`.
+4. Isolation of ALL and SIDE references, including internal same-subset
+   occlusion.
+5. Grouping by all four identity fields, noncontiguous records, insertion
+   codes, and nonnumeric sequence identifiers.
+6. Fully exposed and partially occluded residues for both ratios.
+7. Hydrogen and loose-hetero options, with atom output unchanged.
+8. Serial/compiled backend agreement within the established numerical
+   contract.
+9. Empty SIDE subsets and invalid reference areas according to the decision
+   recorded below.
+10. Determinism, input nonmutation, and no partial output after failure.
 
-## Benchmark and validation requirements
+## Benchmark and acceptance criteria
 
-Measure complete-structure atom SASA time, isolated-reference calculation time,
-total residue-report time, atom count, residue count, and mean atoms per
-residue for representative small, medium, and large structures. Report the
-denominator cost separately because the first implementation may perform one
-small isolated calculation per residue.
+Benchmark complete-structure atom time, ALL reference time, SIDE reference
+time, and total residue-report time for the canonical small, medium, and large
+structures. Report atom and residue counts, side-chain atom counts, sphere
+resolution, backend, workers, and hardware.
 
-Compare residue outputs across serial and compiled backends and inspect CEF
-distributions for values outside `[0, 1]`. Validate at least one structure
-containing insertion codes, terminal residues, alternate locations, and
-nonstandard retained hetero atoms when those options are enabled.
+This stage is complete when the ten-column report is deterministic, both
+numerators and references use the specified atom subsets, atom-level output is
+unchanged, all numerical bounds are enforced, and the focused plus full test
+suites pass.
 
-## Acceptance criteria
+## Resolved classification policies
 
-This stage is complete when:
+### Residues with no SIDE atoms
 
-- `<base>.res.sas` is written with exactly the specified seven columns;
-- `sasa_inprotein` is the sum of complete-structure atom SASAs;
-- `sasa_reference` uses the same residue conformation in isolation;
-- CEF is calculated only for `ALL` mode and is numerically bounded;
-- residue identity, ordering, and formatting are deterministic;
-- atom output and public atom-SASA behavior remain unchanged;
-- focused and full test suites pass; and
-- benchmark conditions and denominator cost are documented.
+Glycine has no conventional side-chain atom under the backbone definition
+above. A residue may also have no retained SIDE atoms after filtering. Its
+SIDE reference area is therefore zero and a SIDE ratio is undefined.
+
+The three SIDE fields are serialized as `NA` for such residues and excluded
+from numeric SIDE-ratio summaries. This avoids conflating “no side chain” with
+zero exposed area.
+
+### Explicit hydrogen classification
+
+The canonical backbone names classify heavy atoms unambiguously, but explicit
+hydrogen atom names can be attached to backbone or side-chain atoms and the
+current normalized atom model does not provide bond connectivity.
+
+SIDE classification is defined by the normalized atom name only. Explicit
+hydrogens whose names are not in the backbone set remain in SIDE. A chemically
+exact hydrogen policy would require connectivity inference or an explicit
+atom-name mapping and is outside this implementation.
