@@ -2,7 +2,7 @@
 
 ## Objective
 
-Build `prot-rsa` as a public PyPI application for calculating protein atom and residue solvent-accessible surface area (SASA). The main calculation application will live in one import-safe Python file, `protrsa.py`, which can be run directly, invoked through the installed `prot-rsa` command, or imported as the `protrsa` module. The atom-SASA comparison utility is a separate import-safe `compare_sas.py` script and installed `prot-rsa-compare` command.
+Build `prot-rsa` as a public PyPI application for calculating protein atom and residue solvent-accessible surface area (SASA). The calculation application will live in one import-safe Python file, `protrsa.py`, which can be run directly, invoked through the installed `prot-rsa` command, or imported as the `protrsa` module.
 
 The implementation will start from the previous PyMCCE SASA code while correcting known issues, defining a stable scientific contract, and adding validated CPU and multiprocessing execution paths.
 
@@ -11,7 +11,6 @@ The implementation will start from the previous PyMCCE SASA code while correctin
 ```bash
 python protrsa.py structure.pdb
 prot-rsa structure.cif.gz --prob-size 1.40 --workers 4
-prot-rsa-compare first.atom.sas second.atom.sas
 ```
 
 ```python
@@ -20,18 +19,14 @@ import protrsa
 result = protrsa.calculate_sasa(...)
 ```
 
-Importing `protrsa` or `compare_sas` must not parse command-line arguments,
-create worker processes, initialize Numba, or perform calculations. Direct
+Importing `protrsa` must not parse command-line arguments, create worker
+processes, initialize Numba, or perform calculations. Direct
 execution will be protected by:
 
 ```python
 if __name__ == "__main__":
     main()
 ```
-
-The installed `prot-rsa-compare` entry point must resolve to
-`compare_sas.compare_sas_main`; comparison code must not be imported into or
-executed by `protrsa.main`.
 
 ## Basic program setup: input and output contract
 
@@ -359,8 +354,6 @@ Every new function will receive focused `pytest` coverage, and tests will run be
 - Failed runs do not leave only one output file or partial output files.
 - CLI failures return appropriate exit codes.
 - Source and wheel distributions include `protrsa.py`, `README.md`, and `LICENSE`.
-- Source and wheel distributions include `compare_sas.py`, and the
-  `prot-rsa-compare` entry point resolves to that separate module.
 - Built distributions pass PyPI metadata validation.
 
 ## Public-release requirements

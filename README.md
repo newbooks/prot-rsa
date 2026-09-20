@@ -29,20 +29,6 @@ normalized `<base>.pqr` containing the selected radii and placeholder charge
 deliberately naive serial implementation remains available as a correctness
 reference.
 
-Compare two generated atom-SASA files with the separate comparison utility:
-
-```bash
-prot-rsa-compare first.atom.sas second.atom.sas
-# or, from a source checkout:
-python compare_sas.py first.atom.sas second.atom.sas
-```
-
-The comparison verifies every ordered atom-identity field and row before
-reporting the mean absolute error between the two `sasa_A2` columns. Radius
-and SASA values may differ. A missing,
-malformed, reordered, or otherwise different atom row is reported as an error
-instead of producing a potentially misaligned MAE.
-
 ## Python use
 
 The application can also be imported as the `protrsa` module so its functions
@@ -55,7 +41,7 @@ import protrsa
 The distribution and command are named `prot-rsa`. The import name is
 `protrsa` because Python module names cannot contain hyphens.
 
-## Residue exposure (planned)
+## Residue exposure
 
 Residue solvent-accessible surface area will be calculated by summing the
 already computed atom SASAs for each residue. The residue report will contain
@@ -78,8 +64,8 @@ reference or maximum ASA.
 Residues without retained side-chain atoms, such as glycine under the
 canonical backbone definition, use `NA` for the three SIDE fields.
 
-CEF is expected to lie in `[0, 1]` up to floating-point roundoff. The residue
-output format and public API are still under development.
+CEF lies in `[0, 1]` up to floating-point roundoff. The complete residue
+output contract is documented in `docs/specs/residue-cef.md`.
 
 The first implementation computes one isolated-residue reference calculation
 per residue. After one warm-up, one-thread medians at 960 sphere points were
