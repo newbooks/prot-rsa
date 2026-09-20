@@ -66,20 +66,16 @@ The existing output path rules remain authoritative:
 1LYZ.cif.gz -> 1LYZ.res.sas
 ```
 
-The file must contain exactly these columns, in this order:
+After the explanatory comment lines, the file must contain exactly this
+tab-separated header row:
 
 ```text
-residue_name
-chain_id
-residue_sequence
-insertion_code
-sasa_all
-sasa_all_ref
-sasa_all_ratio
-sasa_side
-sasa_side_ref
-sasa_side_ratio
+res	chain	seq	ins	all	a_ref	a_cef	side	s_ref	s_cef
 ```
+
+Each column must have one leading `#` comment line matching the descriptions
+in `RESIDUE_CEF_COMMENTS`. Parsers must skip these comment lines before reading
+the header.
 
 The first four fields are copied from the first normalized atom for each
 residue. The residue identity key remains:
@@ -89,8 +85,8 @@ residue. The residue identity key remains:
 ```
 
 Rows are emitted in first-seen residue order. Sequence identifiers remain
-strings, including nonnumeric mmCIF identifiers. The file is UTF-8 TSV with a
-header and trailing newline. Numeric values are formatted with exactly three
+strings, including nonnumeric mmCIF identifiers. The file is UTF-8 TSV with
+comment lines, one header row, and a trailing newline. Numeric values are formatted with exactly three
 digits after the decimal point; intermediate values are never rounded. For
 residues without retained SIDE atoms, the three SIDE fields contain the
 literal `NA`.
@@ -145,7 +141,8 @@ switch for selecting residue columns.
 
 Add focused tests for:
 
-1. Exact ten-column header, ordering, formatting, and output naming.
+1. Exact comment lines, ten-column header, ordering, formatting, and output
+   naming.
 2. ALL aggregation and SIDE aggregation on a residue containing backbone and
    side-chain atoms.
 3. Backbone exclusion for `N`, `CA`, `C`, `O`, and terminal `OXT`.

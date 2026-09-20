@@ -29,30 +29,54 @@ DEFAULT_USE_H = False
 DEFAULT_BACKEND = "auto"
 SUPPORTED_INPUT_SUFFIXES = (".pdb", ".cif", ".pdb.gz", ".cif.gz")
 ATOM_SASA_COLUMNS = (
-    "atom_index",
-    "record_type",
-    "source_id",
-    "atom_name",
-    "residue_name",
-    "chain_id",
-    "residue_sequence",
-    "insertion_code",
-    "element",
-    "radius_A",
-    "sasa_A2",
+    "atom",
+    "rec",
+    "src",
+    "name",
+    "res",
+    "chain",
+    "seq",
+    "ins",
+    "elem",
+    "radius",
+    "sasa",
 )
-ATOM_IDENTITY_COLUMNS = ATOM_SASA_COLUMNS[:-2]
+ATOM_SASA_COMMENTS = (
+    "# atom: 1-based output atom index",
+    "# rec: source record type",
+    "# src: source atom identifier",
+    "# name: atom name",
+    "# res: residue name",
+    "# chain: chain identifier",
+    "# seq: residue sequence identifier",
+    "# ins: insertion code",
+    "# elem: resolved element",
+    "# radius: assigned atomic radius, Å",
+    "# sasa: solvent-accessible surface area, Å²",
+)
 RESIDUE_CEF_COLUMNS = (
-    "residue_name",
-    "chain_id",
-    "residue_sequence",
-    "insertion_code",
-    "sasa_all",
-    "sasa_all_ref",
-    "sasa_all_ratio",
-    "sasa_side",
-    "sasa_side_ref",
-    "sasa_side_ratio",
+    "res",
+    "chain",
+    "seq",
+    "ins",
+    "all",
+    "a_ref",
+    "a_cef",
+    "side",
+    "s_ref",
+    "s_cef",
+)
+RESIDUE_CEF_COMMENTS = (
+    "# res: residue name",
+    "# chain: chain identifier",
+    "# seq: residue sequence identifier",
+    "# ins: insertion code",
+    "# all: in-protein SASA of all residue atoms, Å²",
+    "# a_ref: isolated-residue reference SASA of all atoms, Å²",
+    "# a_cef: all-atom contextual exposure fraction",
+    "# side: in-protein side-chain SASA, Å²",
+    "# s_ref: isolated side-chain reference SASA, Å²",
+    "# s_cef: side-chain contextual exposure fraction",
 )
 BACKBONE_ATOM_NAMES = frozenset({"N", "CA", "C", "O", "OXT"})
 
@@ -853,7 +877,8 @@ def write_atom_sasa_tsv(
 
     if len(atoms) != len(atom_sasa):
         raise ValueError("atoms and atom_sasa must have the same length")
-    lines = ["\t".join(ATOM_SASA_COLUMNS) + "\n"]
+    lines = [*(comment + "\n" for comment in ATOM_SASA_COMMENTS)]
+    lines.append("\t".join(ATOM_SASA_COLUMNS) + "\n")
     for index, (atom, sasa) in enumerate(zip(atoms, atom_sasa), start=1):
         source = atom.source
         lines.append(
@@ -874,7 +899,8 @@ def write_residue_cef_tsv(
     def format_value(value: float | None) -> str:
         return "NA" if value is None else f"{value:.3f}"
 
-    lines = ["\t".join(RESIDUE_CEF_COLUMNS) + "\n"]
+    lines = [*(comment + "\n" for comment in RESIDUE_CEF_COMMENTS)]
+    lines.append("\t".join(RESIDUE_CEF_COLUMNS) + "\n")
     for record in records:
         lines.append(
             f"{record.residue_name}\t{record.chain_id}\t"
@@ -1786,6 +1812,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     except OSError as error:
         parser.error(f"could not write output files: {error}")
     elapsed_time = time.perf_counter() - start_time
+    atom_label = "atom" if len(atoms) == 1 else "atoms"
+    residue_label = "residue" if len(residue_records) == 1 else "residues"
+    print("Output files:", file=sys.stderr)
+    print(
+        f"  Atom SASA ({len(atoms)} {atom_label}): {atom_output.name}",
+        file=sys.stderr,
+    )
+    print(
+        f"  Residue CEF ({len(residue_records)} {residue_label}): "
+        f"{residue_output.name}",
+        file=sys.stderr,
+    )
+    print(f"  Structure in PQR format: {pqr_output.name}", file=sys.stderr)
     print(f"Total elapsed time: {elapsed_time:.3f} seconds", file=sys.stderr)
     return 0
 

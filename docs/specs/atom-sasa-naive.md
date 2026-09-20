@@ -128,6 +128,16 @@ a temporary file in the destination directory and atomically replace its final
 path only after the complete write succeeds. A failed write must not truncate
 an existing output or leave its temporary file behind.
 
+The atom SASA file begins with one `#` explanation line per column, followed by
+this tab-separated header row:
+
+```text
+atom	rec	src	name	res	chain	seq	ins	elem	radius	sasa
+```
+
+The comment lines are defined by `ATOM_SASA_COMMENTS`; parsers must skip them
+before reading the header.
+
 After a successful calculation and both output writes, report
 `Total elapsed time: <seconds> seconds` to standard error with three digits
 after the decimal point. Measure wall-clock time with `time.perf_counter()`

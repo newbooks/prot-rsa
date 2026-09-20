@@ -1,6 +1,6 @@
 # Release history
 
-## 1.0.0 — current release
+## 1.0.1 — current release
 
 `prot-rsa` is an importable Python module and command-line program for
 calculating solvent-accessible surface area (SASA) for protein structures.
@@ -22,6 +22,10 @@ calculating solvent-accessible surface area (SASA) for protein structures.
   including glycine under the canonical backbone definition.
 - Exposes reusable calculation and parsing functions through `protrsa` without
   command-line or filesystem side effects on import.
+- Uses compact SAS column names with one-line `#` explanations at the start of
+  each atom and residue output file.
+- Prints a concise completion summary containing the generated filenames,
+  atom/residue counts, and elapsed time.
 
 The separate atom-file comparison helper is not part of this release.
 
@@ -35,16 +39,38 @@ For an input such as `1LYZ.pdb`, the command writes:
 1LYZ.pqr
 ```
 
-`*.atom.sas` is a UTF-8 tab-separated file with this header:
+`*.atom.sas` is a UTF-8 tab-separated file. It begins with one `#` comment per
+column, followed by this header:
 
 ```text
-atom_index	record_type	source_id	atom_name	residue_name	chain_id	residue_sequence	insertion_code	element	radius_A	sasa_A2
+# atom: 1-based output atom index
+# rec: source record type
+# src: source atom identifier
+# name: atom name
+# res: residue name
+# chain: chain identifier
+# seq: residue sequence identifier
+# ins: insertion code
+# elem: resolved element
+# radius: assigned atomic radius, Å
+# sasa: solvent-accessible surface area, Å²
+atom	rec	src	name	res	chain	seq	ins	elem	radius	sasa
 ```
 
-`*.res.sas` is a UTF-8 tab-separated file with this header:
+`*.res.sas` follows the same comment-plus-header convention:
 
 ```text
-residue_name	chain_id	residue_sequence	insertion_code	sasa_all	sasa_all_ref	sasa_all_ratio	sasa_side	sasa_side_ref	sasa_side_ratio
+# res: residue name
+# chain: chain identifier
+# seq: residue sequence identifier
+# ins: insertion code
+# all: in-protein SASA of all residue atoms, Å²
+# a_ref: isolated-residue reference SASA of all atoms, Å²
+# a_cef: all-atom contextual exposure fraction
+# side: in-protein side-chain SASA, Å²
+# s_ref: isolated side-chain reference SASA, Å²
+# s_cef: side-chain contextual exposure fraction
+res	chain	seq	ins	all	a_ref	a_cef	side	s_ref	s_cef
 ```
 
 The first four residue fields identify the residue. The `*_all` values use all
@@ -54,7 +80,7 @@ residue atoms isolated from the rest of the protein. Numeric residue values
 are formatted to three decimal places; SIDE fields are `NA` when no SIDE atoms
 remain.
 
-`*.pqr` contains PDB-style records with normalized coordinates, a placeholder
+`*.pqr` contains PDB-style records with the input coordinates, a placeholder
 charge of `0.000`, and the assigned radius. It has no tabular header.
 
 ### Expected performance
@@ -77,3 +103,7 @@ Halving the sphere-point count does not halve total wall-clock time because
 validation, neighbor construction, and other fixed costs remain. The 480-point
 results had atom-SASA MAE values of approximately 0.164, 0.145, and 0.184 Å²
 per atom for 1LYZ, 1CA2, and 1UOR, respectively, relative to 960-point output.
+
+## 1.0.0 — initial release
+
+Initial TestPyPI release of the atom-SASA and dual residue-CEF calculation.
