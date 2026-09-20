@@ -888,25 +888,6 @@ def write_residue_cef_tsv(
     _write_new_text(output_path, "".join(lines))
 
 
-def compare_atom_sasa_files(
-    first_path: str | Path,
-    second_path: str | Path,
-) -> tuple[int, float]:
-    """Compatibility wrapper for the standalone comparison utility."""
-
-    from compare_sas import compare_atom_sasa_files as _compare_atom_sasa_files
-
-    return _compare_atom_sasa_files(first_path, second_path)
-
-
-def compare_sas_main(argv: Sequence[str] | None = None) -> int:
-    """Compatibility wrapper for the standalone comparison CLI."""
-
-    from compare_sas import compare_sas_main as _compare_sas_main
-
-    return _compare_sas_main(argv)
-
-
 def generate_sphere_points(
     n_points: int = DEFAULT_SPHERE_POINTS,
 ) -> np.ndarray:

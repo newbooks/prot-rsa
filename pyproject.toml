@@ -24,6 +24,12 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Chemistry",
@@ -38,10 +44,12 @@ dependencies = [
 Homepage = "https://github.com/newbooks/prot-rsa"
 Repository = "https://github.com/newbooks/prot-rsa"
 Issues = "https://github.com/newbooks/prot-rsa/issues"
+Changelog = "https://github.com/newbooks/prot-rsa/blob/main/HISTORY.md"
+Documentation = "https://github.com/newbooks/prot-rsa/blob/main/README.md"
 
 [project.scripts]
 prot-rsa = "protrsa:main"
-prot-rsa-compare = "compare_sas:compare_sas_main"
 
 [tool.setuptools]
-py-modules = ["protrsa", "compare_sas"]
+include-package-data = true
+py-modules = ["protrsa"]
