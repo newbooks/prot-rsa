@@ -23,7 +23,7 @@ prot-rsa structure.pdb --sphere-points 480
 Run `prot-rsa --help` to see the supported PDB/mmCIF input suffixes, calculation
 options, defaults, and derived output filenames.
 
-The command writes `<base>.atom.sas` and `<base>.res.sas` as TSV files, plus a
+The command writes `<base>.atom_sas.tsv` and `<base>.res_sas.tsv` as TSV files, plus a
 normalized `<base>.pqr` containing the selected radii and placeholder charge
 `0.000`. The production calculation uses cKDTree neighbor pruning; the
 deliberately naive serial implementation remains available as a correctness

@@ -80,8 +80,8 @@ hydrogens. The parser must not silently invent different rules.
 
 Each successful run writes exactly two files alongside the input file:
 
-- `<base>.atom.sas`, a TSV file containing atom solvent-accessible surface areas
-- `<base>.res.sas`, a TSV file containing residue solvent-accessible surface
+- `<base>.atom_sas.tsv`, a TSV file containing atom solvent-accessible surface areas
+- `<base>.res_sas.tsv`, a TSV file containing residue solvent-accessible surface
   areas and the planned Contextual Exposure Fraction (CEF)
 
 `<base>` is the input path with the optional final `.gz` suffix removed,
@@ -89,10 +89,10 @@ followed by the `.pdb` or `.cif` suffix removed. For example:
 
 | Input | Atom output | Residue output |
 | --- | --- | --- |
-| `protein.pdb` | `protein.atom.sas` | `protein.res.sas` |
-| `protein.cif` | `protein.atom.sas` | `protein.res.sas` |
-| `protein.pdb.gz` | `protein.atom.sas` | `protein.res.sas` |
-| `/data/protein.cif.gz` | `/data/protein.atom.sas` | `/data/protein.res.sas` |
+| `protein.pdb` | `protein.atom_sas.tsv` | `protein.res_sas.tsv` |
+| `protein.cif` | `protein.atom_sas.tsv` | `protein.res_sas.tsv` |
+| `protein.pdb.gz` | `protein.atom_sas.tsv` | `protein.res_sas.tsv` |
+| `/data/protein.cif.gz` | `/data/protein.atom_sas.tsv` | `/data/protein.res_sas.tsv` |
 
 Both `.sas` files use tab-separated values. The initial atom-output columns,
 units, precision, ordering, and atomic-overwrite policy are defined in
@@ -296,8 +296,8 @@ prot-rsa input.pdb --preserve-het --use-h
 ```
 
 Implement the positional input and options exactly as defined in the command-
-line specification. A successful run writes the derived `.atom.sas` and
-`.res.sas` files. Errors go to standard error, and invalid input or calculation
+line specification. A successful run writes the derived `.atom_sas.tsv` and
+`.res_sas.tsv` files. Errors go to standard error, and invalid input or calculation
 failure returns a nonzero exit status.
 
 ## Phase 10: Test and validate

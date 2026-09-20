@@ -154,7 +154,7 @@ def test_calculation_dispatches_to_spatial_implementation(
 def test_writers_emit_zero_charge_radius_and_sasa(tmp_path: Path) -> None:
     normalized = protrsa.normalize_atoms([atom("CA", "C")])
     pqr_path = tmp_path / "model.pqr"
-    sasa_path = tmp_path / "model.atom.sas"
+    sasa_path = tmp_path / "model.atom_sas.tsv"
 
     protrsa.write_pqr(pqr_path, normalized)
     protrsa.write_atom_sasa_tsv(sasa_path, normalized, [12.3456789])
@@ -256,8 +256,8 @@ def test_cli_writes_atom_sasa_and_pqr_for_single_atom(
     exit_status = protrsa.main([str(input_path)])
 
     assert exit_status == 0
-    atom_output = tmp_path / "one.atom.sas"
-    residue_output = tmp_path / "one.res.sas"
+    atom_output = tmp_path / "one.atom_sas.tsv"
+    residue_output = tmp_path / "one.res_sas.tsv"
     pqr_output = tmp_path / "one.pqr"
     assert atom_output.is_file()
     assert residue_output.is_file()
@@ -269,8 +269,8 @@ def test_cli_writes_atom_sasa_and_pqr_for_single_atom(
     assert captured.out == ""
     assert captured.err == (
         "Output files:\n"
-        "  Atom SASA (1 atom): one.atom.sas\n"
-        "  Residue CEF (1 residue): one.res.sas\n"
+        "  Atom SASA (1 atom): one.atom_sas.tsv\n"
+        "  Residue CEF (1 residue): one.res_sas.tsv\n"
         "  Structure in PQR format: one.pqr\n"
         "Total elapsed time: 1.235 seconds\n"
     )
@@ -283,7 +283,7 @@ def test_cli_overwrites_existing_outputs(tmp_path: Path) -> None:
         "           C  \n",
         encoding="utf-8",
     )
-    output_path = tmp_path / "one.atom.sas"
+    output_path = tmp_path / "one.atom_sas.tsv"
     output_path.write_text("keep me\n", encoding="utf-8")
     pqr_path = tmp_path / "one.pqr"
     pqr_path.write_text("old pqr\n", encoding="utf-8")

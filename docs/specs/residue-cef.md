@@ -62,8 +62,8 @@ The implementation must preserve the existing normalization behavior:
 The existing output path rules remain authoritative:
 
 ```text
-1LYZ.pdb    -> 1LYZ.res.sas
-1LYZ.cif.gz -> 1LYZ.res.sas
+1LYZ.pdb    -> 1LYZ.res_sas.tsv
+1LYZ.cif.gz -> 1LYZ.res_sas.tsv
 ```
 
 After the explanatory comment lines, the file must contain exactly this
@@ -133,7 +133,7 @@ The reusable residue calculation API should return a record containing the
 four identity fields and six numeric values above. Existing atom-level APIs
 retain their signatures and behavior.
 
-The CLI continues to write `.atom.sas`, `.res.sas`, and `.pqr` in one run. The
+The CLI continues to write `.atom_sas.tsv`, `.res_sas.tsv`, and `.pqr` in one run. The
 residue file always contains both ALL and SIDE columns. There is no CLI mode
 switch for selecting residue columns.
 

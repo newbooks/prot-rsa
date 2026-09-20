@@ -94,7 +94,7 @@ def test_residue_cef_groups_atoms_and_preserves_first_seen_order() -> None:
 def test_residue_cef_writer_uses_required_schema_and_three_decimals(
     tmp_path: Path,
 ) -> None:
-    output_path = tmp_path / "1LYZ.res.sas"
+    output_path = tmp_path / "1LYZ.res_sas.tsv"
     records = [
         protrsa.ResidueCefRecord(
             residue_name="ALA",
