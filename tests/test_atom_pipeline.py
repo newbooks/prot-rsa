@@ -163,8 +163,21 @@ def test_writers_emit_zero_charge_radius_and_sasa(tmp_path: Path) -> None:
     assert "  0.000 " in pqr_text
     assert f" {normalized[0].radius:6.3f}" in pqr_text
     sasa_text = sasa_path.read_text(encoding="utf-8")
-    assert "sasa_A2" in sasa_text
-    assert "12.345679" in sasa_text
+    assert sasa_text == (
+        "# atom: 1-based output atom index\n"
+        "# rec: source record type\n"
+        "# src: source atom identifier\n"
+        "# name: atom name\n"
+        "# res: residue name\n"
+        "# chain: chain identifier\n"
+        "# seq: residue sequence identifier\n"
+        "# ins: insertion code\n"
+        "# elem: resolved element\n"
+        "# radius: assigned atomic radius, Å\n"
+        "# sasa: solvent-accessible surface area, Å²\n"
+        "atom\trec\tsrc\tname\tres\tchain\tseq\tins\telem\tradius\tsasa\n"
+        "1\tATOM\t1\tCA\tALA\tA\t1\t\tC\t1.880\t12.345679\n"
+    )
 
 
 def test_writer_preserves_existing_file_when_atomic_replace_fails(
@@ -249,12 +262,18 @@ def test_cli_writes_atom_sasa_and_pqr_for_single_atom(
     assert atom_output.is_file()
     assert residue_output.is_file()
     assert pqr_output.is_file()
-    assert "sasa_A2" in atom_output.read_text(encoding="utf-8")
-    assert "sasa_all" in residue_output.read_text(encoding="utf-8")
+    assert "\tradius\tsasa\n" in atom_output.read_text(encoding="utf-8")
+    assert "\ta_cef\tside\t" in residue_output.read_text(encoding="utf-8")
     assert "0.000" in pqr_output.read_text(encoding="utf-8")
     captured = capsys.readouterr()
     assert captured.out == ""
-    assert captured.err == "Total elapsed time: 1.235 seconds\n"
+    assert captured.err == (
+        "Output files:\n"
+        "  Atom SASA (1 atom): one.atom.sas\n"
+        "  Residue CEF (1 residue): one.res.sas\n"
+        "  Structure in PQR format: one.pqr\n"
+        "Total elapsed time: 1.235 seconds\n"
+    )
 
 
 def test_cli_overwrites_existing_outputs(tmp_path: Path) -> None:
@@ -271,7 +290,7 @@ def test_cli_overwrites_existing_outputs(tmp_path: Path) -> None:
 
     assert protrsa.main([str(input_path)]) == 0
 
-    assert "sasa_A2" in output_path.read_text(encoding="utf-8")
+    assert "\tradius\tsasa\n" in output_path.read_text(encoding="utf-8")
     assert output_path.read_text(encoding="utf-8") != "keep me\n"
     assert "0.000" in pqr_path.read_text(encoding="utf-8")
     assert pqr_path.read_text(encoding="utf-8") != "old pqr\n"

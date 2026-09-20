@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "prot-rsa"
-version = "1.0.0"
+version = "1.0.1"
 description = "Fast protein residue surface-area calculation in Python"
 readme = "README.md"
 requires-python = ">=3.10"

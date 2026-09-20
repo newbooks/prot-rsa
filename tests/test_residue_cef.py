@@ -113,9 +113,18 @@ def test_residue_cef_writer_uses_required_schema_and_three_decimals(
     protrsa.write_residue_cef_tsv(output_path, records)
 
     assert output_path.read_text(encoding="utf-8") == (
-        "residue_name\tchain_id\tresidue_sequence\tinsertion_code\t"
-        "sasa_all\tsasa_all_ref\tsasa_all_ratio\t"
-        "sasa_side\tsasa_side_ref\tsasa_side_ratio\n"
+        "# res: residue name\n"
+        "# chain: chain identifier\n"
+        "# seq: residue sequence identifier\n"
+        "# ins: insertion code\n"
+        "# all: in-protein SASA of all residue atoms, Å²\n"
+        "# a_ref: isolated-residue reference SASA of all atoms, Å²\n"
+        "# a_cef: all-atom contextual exposure fraction\n"
+        "# side: in-protein side-chain SASA, Å²\n"
+        "# s_ref: isolated side-chain reference SASA, Å²\n"
+        "# s_cef: side-chain contextual exposure fraction\n"
+        "res\tchain\tseq\tins\tall\ta_ref\ta_cef\t"
+        "side\ts_ref\ts_cef\n"
         "ALA\tA\t7\tB\t12.346\t23.457\t0.525\t5.432\t9.877\t0.550\n"
     )
 
