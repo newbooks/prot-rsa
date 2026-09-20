@@ -14,7 +14,7 @@ SASA, relative accessibility, exposed fractions, percentages, or normalized
 values. Residue SASA will be specified only after optimized atom SASA has been
 validated against this reference.
 
-The `.atom.sas` output is a tab-separated-values (TSV) file. Its initial
+The `.atom_sas.tsv` output is a tab-separated-values (TSV) file. Its initial
 columns, precision, ordering, and overwrite behavior are defined below. The
 numerical reference function itself does not perform serialization.
 
@@ -110,7 +110,7 @@ passed, in the same order, to `atom_sasa_reference()`.
 The CLI does not select an atom or residue mode. The residue report computes
 both ALL and SIDE metrics according to `residue-cef.md`. It writes:
 
-- `<base>.atom.sas`, a TSV with atom index, source record type and identifier,
+- `<base>.atom_sas.tsv`, a TSV with atom index, source record type and identifier,
   atom and residue identifiers, normalized element, radius in Å, and absolute
   SASA in Å²; and
 - `<base>.pqr`, containing the same retained atoms and radii, sequential output
@@ -118,7 +118,7 @@ both ALL and SIDE metrics according to `residue-cef.md`. It writes:
   atom.
 
 The atom numerical reference does not perform residue aggregation or
-serialization; the production CLI writes `.res.sas` through the separate
+serialization; the production CLI writes `.res_sas.tsv` through the separate
 residue-CEF stage. Atom output order is the normalized atom order. SASA is
 written to six decimal places and radii to three decimal places. PQR output is
 a radius-bearing interchange file only; its zero

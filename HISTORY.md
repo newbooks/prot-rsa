@@ -24,6 +24,8 @@ calculating solvent-accessible surface area (SASA) for protein structures.
   command-line or filesystem side effects on import.
 - Uses compact SAS column names with one-line `#` explanations at the start of
   each atom and residue output file.
+- Names the tab-separated outputs `<base>.atom_sas.tsv` and
+  `<base>.res_sas.tsv` so their format and purpose are explicit.
 - Prints a concise completion summary containing the generated filenames,
   atom/residue counts, and elapsed time.
 
@@ -34,12 +36,12 @@ The separate atom-file comparison helper is not part of this release.
 For an input such as `1LYZ.pdb`, the command writes:
 
 ```text
-1LYZ.atom.sas
-1LYZ.res.sas
+1LYZ.atom_sas.tsv
+1LYZ.res_sas.tsv
 1LYZ.pqr
 ```
 
-`*.atom.sas` is a UTF-8 tab-separated file. It begins with one `#` comment per
+`*.atom_sas.tsv` is a UTF-8 tab-separated file. It begins with one `#` comment per
 column, followed by this header:
 
 ```text
@@ -57,7 +59,7 @@ column, followed by this header:
 atom	rec	src	name	res	chain	seq	ins	elem	radius	sasa
 ```
 
-`*.res.sas` follows the same comment-plus-header convention:
+`*.res_sas.tsv` follows the same comment-plus-header convention:
 
 ```text
 # res: residue name

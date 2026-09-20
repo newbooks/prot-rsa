@@ -1686,9 +1686,9 @@ def build_parser(*, prog: str | None = None) -> argparse.ArgumentParser:
         ),
         epilog=(
             "output files:\n"
-            "  <base>.atom.sas       atom solvent-accessible surface areas\n"
+            "  <base>.atom_sas.tsv   atom solvent-accessible surface areas\n"
             "  <base>.pqr            normalized atoms, radii, and zero charges\n"
-            "  <base>.res.sas        residue SASA and contextual exposure\n\n"
+            "  <base>.res_sas.tsv    residue SASA and contextual exposure\n\n"
             "The output files are written alongside INPUT. <base> is INPUT with "
             ".gz, when present, and then .pdb or .cif removed."
         ),
@@ -1762,8 +1762,8 @@ def derive_output_paths(input_path: str | Path) -> tuple[Path, Path]:
     """Return atom and residue output paths without modifying the filesystem."""
 
     base = _strip_structure_suffix(Path(input_path))
-    atom_output = base.with_name(f"{base.name}.atom.sas")
-    residue_output = base.with_name(f"{base.name}.res.sas")
+    atom_output = base.with_name(f"{base.name}.atom_sas.tsv")
+    residue_output = base.with_name(f"{base.name}.res_sas.tsv")
     return atom_output, residue_output
 
 

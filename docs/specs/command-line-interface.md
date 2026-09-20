@@ -93,9 +93,9 @@ the type and validation described above.
 
 A successful calculation produces three files alongside the input:
 
-- `<base>.atom.sas`, a TSV file for atom solvent-accessible surface areas;
+- `<base>.atom_sas.tsv`, a TSV file for atom solvent-accessible surface areas;
 - `<base>.pqr`, normalized atoms with radii and placeholder zero charges; and
-- `<base>.res.sas`, a TSV file for residue SASA and Contextual Exposure
+- `<base>.res_sas.tsv`, a TSV file for residue SASA and Contextual Exposure
   Fraction as defined in [`residue-cef.md`](residue-cef.md).
 
 Derive `<base>` by removing a final `.gz` suffix when present and then removing
@@ -107,14 +107,14 @@ Examples:
 
 | Input | Atom output | PQR output | Residue output |
 | --- | --- | --- | --- |
-| `protein.pdb` | `protein.atom.sas` | `protein.pqr` | `protein.res.sas` |
-| `protein.cif.gz` | `protein.atom.sas` | `protein.pqr` | `protein.res.sas` |
-| `model.v2.PDB.GZ` | `model.v2.atom.sas` | `model.v2.pqr` | `model.v2.res.sas` |
-| `/data/set/protein.cif` | `/data/set/protein.atom.sas` | `/data/set/protein.pqr` | `/data/set/protein.res.sas` |
+| `protein.pdb` | `protein.atom_sas.tsv` | `protein.pqr` | `protein.res_sas.tsv` |
+| `protein.cif.gz` | `protein.atom_sas.tsv` | `protein.pqr` | `protein.res_sas.tsv` |
+| `model.v2.PDB.GZ` | `model.v2.atom_sas.tsv` | `model.v2.pqr` | `model.v2.res_sas.tsv` |
+| `/data/set/protein.cif` | `/data/set/protein.atom_sas.tsv` | `/data/set/protein.pqr` | `/data/set/protein.res_sas.tsv` |
 
 Output paths must be derived by a reusable pure function. The function must
 not create, truncate, or otherwise modify any output file. The calculation
-atomically replaces existing `.atom.sas`, `.res.sas`, and `.pqr` outputs as defined in
+atomically replaces existing `.atom_sas.tsv`, `.res_sas.tsv`, and `.pqr` outputs as defined in
 [`atom-sasa-naive.md`](atom-sasa-naive.md). The `.sas` suffix does not change
 the format: SASA files use tab-separated values rather than comma-separated
 values.
@@ -149,9 +149,9 @@ options:
                         (default: false)
 
 output files:
-  <base>.atom.sas       atom solvent-accessible surface areas
+  <base>.atom_sas.tsv   atom solvent-accessible surface areas
   <base>.pqr            normalized atoms, radii, and zero charges
-  <base>.res.sas        residue SASA and contextual exposure
+  <base>.res_sas.tsv    residue SASA and contextual exposure
 
 The output files are written alongside INPUT. <base> is INPUT with .gz, when
 present, and then .pdb or .cif removed.

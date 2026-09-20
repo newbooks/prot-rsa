@@ -152,9 +152,9 @@ def test_unsupported_input_suffixes_are_rejected(tmp_path: Path, name: str) -> N
 @pytest.mark.parametrize(
     ("input_name", "atom_name", "residue_name"),
     [
-        ("protein.pdb", "protein.atom.sas", "protein.res.sas"),
-        ("protein.cif.gz", "protein.atom.sas", "protein.res.sas"),
-        ("model.v2.PDB.GZ", "model.v2.atom.sas", "model.v2.res.sas"),
+        ("protein.pdb", "protein.atom_sas.tsv", "protein.res_sas.tsv"),
+        ("protein.cif.gz", "protein.atom_sas.tsv", "protein.res_sas.tsv"),
+        ("model.v2.PDB.GZ", "model.v2.atom_sas.tsv", "model.v2.res_sas.tsv"),
     ],
 )
 def test_output_path_derivation(
@@ -179,8 +179,8 @@ def test_output_path_derivation_rejects_unsupported_suffix() -> None:
 def test_relative_output_path_derivation() -> None:
     atom_path, residue_path = protrsa.derive_output_paths("inputs/protein.pdb.gz")
 
-    assert atom_path == Path("inputs/protein.atom.sas")
-    assert residue_path == Path("inputs/protein.res.sas")
+    assert atom_path == Path("inputs/protein.atom_sas.tsv")
+    assert residue_path == Path("inputs/protein.res_sas.tsv")
 
 
 def test_missing_input_is_rejected() -> None:
@@ -238,9 +238,9 @@ def test_help_contains_required_contract() -> None:
         "default: 1",
         "minimum 122",
         "default: false",
-        "<base>.atom.sas",
+        "<base>.atom_sas.tsv",
         "<base>.pqr",
-        "<base>.res.sas",
+        "<base>.res_sas.tsv",
         "written alongside INPUT",
     ):
         assert required_text in help_text
@@ -270,6 +270,6 @@ def test_empty_structure_fails_without_outputs(tmp_path: Path) -> None:
         protrsa.main([str(input_path)])
 
     assert error.value.code != 0
-    assert not (tmp_path / "protein.atom.sas").exists()
-    assert not (tmp_path / "protein.res.sas").exists()
+    assert not (tmp_path / "protein.atom_sas.tsv").exists()
+    assert not (tmp_path / "protein.res_sas.tsv").exists()
     assert not (tmp_path / "protein.pqr").exists()
