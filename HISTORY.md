@@ -38,32 +38,13 @@ For an input such as `1LYZ.pdb`, the command writes:
 `*.atom.sas` is a UTF-8 tab-separated file with this header:
 
 ```text
-atom_index
-record_type
-source_id
-atom_name
-residue_name
-chain_id
-residue_sequence
-insertion_code
-element
-radius_A
-sasa_A2
+atom_index	record_type	source_id	atom_name	residue_name	chain_id	residue_sequence	insertion_code	element	radius_A	sasa_A2
 ```
 
 `*.res.sas` is a UTF-8 tab-separated file with this header:
 
 ```text
-residue_name
-chain_id
-residue_sequence
-insertion_code
-sasa_all
-sasa_all_ref
-sasa_all_ratio
-sasa_side
-sasa_side_ref
-sasa_side_ratio
+residue_name	chain_id	residue_sequence	insertion_code	sasa_all	sasa_all_ref	sasa_all_ratio	sasa_side	sasa_side_ref	sasa_side_ratio
 ```
 
 The first four residue fields identify the residue. The `*_all` values use all
